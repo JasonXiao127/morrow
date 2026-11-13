@@ -302,7 +302,22 @@ anything:
    app currently builds from `Dockerfile.app`; pin its base
    `node:22-bookworm-slim` there when the image track does the same.
 
-Apply:
+For a source checkout, `deploy/upgrade.sh` performs the pre-upgrade SQLite
+snapshot, rebuild, recreate and readiness poll in one step:
+
+```sh
+sg docker -c './deploy/upgrade.sh'
+# Tailscale overlay:
+sg docker -c 'COMPOSE_OVERLAY=compose.tailscale.yaml ./deploy/upgrade.sh'
+```
+
+The snapshot runs inside the running `app` container on a separate
+`better-sqlite3` handle with `busy_timeout=5000`, writes
+`/data/backups/pre-upgrade-<timestamp>.db` with `VACUUM INTO`, and rejects the
+upgrade if `integrity_check` is not clean. The script never passes `-v`, so
+named volumes are preserved.
+
+Apply manually when images are already pinned:
 
 ```sh
 sg docker -c 'docker compose pull'
