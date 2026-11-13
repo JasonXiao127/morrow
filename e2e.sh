@@ -4,10 +4,50 @@
 set -euo pipefail
 PORT="${PORT:-4591}"
 E2E_BASE="${E2E_BASE:-http://127.0.0.1:${PORT}}"
-DB_DIR="/tmp/morrow-refine-e2e"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DB_DIR=""
 
-rm -rf "${DB_DIR}"
+cleanup() {
+  local status=$?
+  trap - EXIT INT TERM
+  if [[ -n "${SRV:-}" ]]; then
+    kill "${SRV}" 2>/dev/null || true
+    wait "${SRV}" 2>/dev/null || true
+    SRV=""
+  fi
+  if [[ -n "${DB_DIR}" ]]; then
+    if [[ "${status}" -eq 0 ]]; then
+      rm -rf "${DB_DIR}"
+    else
+      echo "e2e artifacts kept at ${DB_DIR}"
+    fi
+  fi
+  exit "${status}"
+}
+
+on_signal() {
+  exit 130
+}
+
+trap cleanup EXIT
+trap on_signal INT TERM
+
+# Fail before starting a server that would collide with an existing one.
+if (exec 3<>"/dev/tcp/127.0.0.1/${PORT}") 2>/dev/null; then
+  echo "FAIL port ${PORT} is already in use; set PORT to a free port"
+  exit 1
+fi
+
+if [[ ! -f "${ROOT}/apps/web/dist/index.html" ]]; then
+  if [[ "${SKIP_FRESH_GATE:-0}" == "1" ]]; then
+    echo "fresh-install browser gate skipped (SKIP_FRESH_GATE=1)"
+  else
+    echo "FAIL apps/web/dist/index.html is missing; run pnpm build first (or set SKIP_FRESH_GATE=1)"
+    exit 1
+  fi
+fi
+
+DB_DIR="$(mktemp -d "${TMPDIR:-/tmp}/morrow-e2e.XXXXXX")"
 mkdir -p "${DB_DIR}/secrets" "${DB_DIR}/data"
 
 export DATABASE_PATH="${DB_DIR}/app.db"
@@ -19,10 +59,13 @@ export NODE_ENV=development
 export PORT
 export HOST=0.0.0.0
 export APP_URL="http://127.0.0.1:${PORT}"
+# Deterministic AI-off baseline. A developer shell that exported these must not
+# change what the e2e suite proves.
+export OPENCODE_URL=""
+export MCP_ENABLED=false
 
 node "${ROOT}/apps/server/dist/index.js" > "${DB_DIR}/server.log" 2>&1 &
 SRV=$!
-trap 'kill ${SRV} 2>/dev/null || true' EXIT
 
 for i in $(seq 1 50); do
   if curl -sf "${E2E_BASE}/healthz" >/dev/null 2>&1; then break; fi
@@ -35,7 +78,7 @@ export E2E_BASE
 # Fresh-install gate: before any owner exists, the real browser must be sent
 # to /setup from both / and /login. This runs before the API suite provisions
 # the owner; the same spec skips itself in the normal run.
-if [ -f "${ROOT}/apps/web/dist/index.html" ]; then
+if [[ -f "${ROOT}/apps/web/dist/index.html" ]]; then
   echo "browser: fresh-install setup routing"
   (cd "${ROOT}/apps/web" && MORROW_FRESH_E2E=1 npx playwright test e2e-browser/first-run.spec.ts)
   FRESH_CODE=$?
@@ -43,8 +86,6 @@ if [ -f "${ROOT}/apps/web/dist/index.html" ]; then
     echo "FAIL fresh-install browser gate (${FRESH_CODE})"
     exit "${FRESH_CODE}"
   fi
-else
-  echo "fresh-install browser gate skipped: build apps/web first"
 fi
 
 node "${ROOT}/apps/web/e2e/run.mjs"
