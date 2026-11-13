@@ -1,0 +1,107 @@
+{
+  "id": "/",
+  "name": "Morrow — reminders that keep up",
+  "short_name": "Morrow",
+  "description": "Self-hosted reminders that keep up, with an assistant that proposes and never surprises.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#FAF7F0",
+  "theme_color": "#FAF7F0",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities"],
+  "prefer_related_applications": false,
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "share_target": {
+    "action": "/today",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today",
+      "short_name": "Today",
+      "description": "Open today's reminders",
+      "url": "/today",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Capture a task",
+      "short_name": "Capture",
+      "description": "Add a reminder in a sentence",
+      "url": "/today?capture=1",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Upcoming",
+      "short_name": "Upcoming",
+      "description": "See what is coming",
+      "url": "/upcoming"
+    },
+    {
+      "name": "Inbox",
+      "short_name": "Inbox",
+      "description": "Open unscheduled tasks",
+      "url": "/inbox"
+    },
+    {
+      "name": "Calendar",
+      "short_name": "Calendar",
+      "description": "Open the month calendar",
+      "url": "/calendar"
+    }
+  ]
+}

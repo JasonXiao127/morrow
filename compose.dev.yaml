@@ -1,0 +1,26 @@
+# Dev overrides: expose the app directly, keep Caddy in the loop.
+# Usage: docker compose -f compose.yaml -f compose.dev.yaml up --build
+# (or: pnpm dev)
+#
+# This is a development front door, not a production one. For a production
+# Tailscale or external-proxy deployment use compose.tailscale.yaml or
+# compose.external.yaml instead of this file.
+
+services:
+  app:
+    ports:
+      # Host port for the dev container. Production keeps Caddy on 80/443;
+      # 3000 is commonly occupied by another local tool.
+      - "${MORROW_DEV_PORT:-3100}:3000"
+    environment:
+      NODE_ENV: development
+    # Live-mount sources once other tracks add them (harmless if absent).
+    volumes:
+      - app-data:/data
+      # - ./apps/server:/app/apps/server:ro
+      # - ./packages:/app/packages:ro
+
+  caddy:
+    ports:
+      - "80:80"
+      - "443:443"

@@ -1,0 +1,28 @@
+# Tailscale Serve overlay: private HTTPS without the bundled Caddy.
+#
+# Usage:
+#   docker compose -f compose.yaml -f compose.tailscale.yaml up -d --build app
+#   tailscale serve --bg --https=8443 http://127.0.0.1:${MORROW_LOOPBACK_PORT:-3300}
+#
+# Then set in .env:
+#   APP_URL=https://<machine>.<tailnet>.ts.net:8443
+#   TRUST_PROXY=172.22.0.0/16
+# Use the actual `edge` subnet (docker network inspect morrow_edge). The app
+# runs in Docker, so the peer is the edge gateway, not loopback.
+#
+# Keep 8443 for Morrow so Caddy (or another front door) can own 443 for other
+# sites. Use `--https=443` instead only when Tailscale Serve is the only
+# front door on this host.
+#
+# SITE_ADDRESS is cleared for the app because SITE_ADDRESS describes the
+# bundled Caddy; leaving it set would log a misleading mismatch warning.
+services:
+  app:
+    ports:
+      # Loopback only: the Tailscale daemon proxies to this port. Set
+      # MORROW_PROXY_BIND=0.0.0.0 only when a proxy outside this host needs it.
+      - "${MORROW_PROXY_BIND:-127.0.0.1}:${MORROW_LOOPBACK_PORT:-3300}:3000"
+    environment:
+      SITE_ADDRESS: ""
+  caddy:
+    profiles: ["disabled"]

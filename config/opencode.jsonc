@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // M4 sidecar config (plan §6). Mounted read-only at /workspace; the prompt
+  // file is mounted at /workspace/prompts/reminders.md from packages/agent.
+  "default_agent": "reminders",
+  "agents": {
+    "reminders": {
+      "description": "Self-hosted reminders assistant",
+      "mode": "primary",
+      "system": "{file:/workspace/prompts/reminders.md}",
+      "steps": 8,
+      // Later rules win. Keep the deny-all first and the reminders allow last.
+      "permissions": [
+        { "action": "*", "resource": "*", "effect": "deny" },
+        { "action": "morrow_reminders_*", "resource": "*", "effect": "allow" }
+      ]
+    }
+  },
+  // Defense in depth for 2.2.5. Permissions above remain the primary control.
+  "policies": [
+    { "action": "tool.use", "resource": "shell:*", "effect": "deny" },
+    { "action": "tool.use", "resource": "edit:*", "effect": "deny" },
+    { "action": "tool.use", "resource": "read:*", "effect": "deny" },
+    { "action": "tool.use", "resource": "webfetch:*", "effect": "deny" },
+    { "action": "tool.use", "resource": "websearch:*", "effect": "deny" }
+  ],
+  "mcp": {
+    "servers": {
+      "morrow": {
+        "type": "remote",
+        "url": "http://app:3001/mcp",
+        "oauth": false,
+        "codemode": false,
+        "protocol": "auto",
+        "headers": { "Authorization": "Bearer {env:REMINDERS_MCP_TOKEN}" },
+        "timeout": {
+          "startup": 30000,
+          "catalog": 30000,
+          "execution": 30000
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "morrow",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev": "docker compose -f compose.yaml -f compose.dev.yaml up --build",
+    "e2e": "./e2e.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

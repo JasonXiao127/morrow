@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192" role="img" aria-label="Morrow sunrise mark">
+  <rect width="192" height="192" rx="44" fill="#FAF7F0"/>
+  <circle cx="96" cy="82" r="31" fill="#B3401A"/>
+  <path d="M43 118h106" stroke="#E6DDCE" stroke-width="7" stroke-linecap="round"/>
+  <path d="M61 138h70" stroke="#1C1A16" stroke-width="7" stroke-linecap="round"/>
+</svg>

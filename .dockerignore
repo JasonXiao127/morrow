@@ -1,0 +1,23 @@
+# Morrow app image — never bake secrets, data, or test artifacts.
+.env
+.env.*
+!.env.example
+data/
+apps/server/data/
+backups/
+*.db
+*.db-wal
+*.db-shm
+.git/
+.gitignore
+node_modules/
+**/dist/
+coverage/
+playwright-report/
+test-results/
+.playwright-mcp/
+.caddy/
+secrets/
+.morrow-harness/
+*.log
+.DS_Store

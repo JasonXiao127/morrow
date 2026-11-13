@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" class="paper">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Morrow</title>
+    <meta
+      name="description"
+      content="Self-hosted reminders that keep up, with an assistant that proposes and never surprises."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF7F0" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171410" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Morrow" />
+    <meta name="format-detection" content="telephone=no" />
+    <script src="/theme-init.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <div class="noscript-card">
+        <h1>Morrow needs JavaScript</h1>
+        <p>Enable JavaScript to open your reminders.</p>
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

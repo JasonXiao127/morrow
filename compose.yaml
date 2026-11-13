@@ -1,0 +1,245 @@
+# Morrow v0.1 — compose bundle (M0 scaffold, see plan §10 Deployment).
+#
+# Services: caddy (only public ports 80/443) + app (edge+agent) + opencode
+# (agent + dedicated outbound `egress`; 4096 never published).
+# M4 track owns ./config/opencode.jsonc mounted read-only at /workspace (see README).
+#
+# Front doors:
+#   Bundled Caddy (default):
+#     docker compose up -d --build
+#   Tailscale Serve (private HTTPS, Caddy disabled):
+#     docker compose -f compose.yaml -f compose.tailscale.yaml up -d --build app
+#   External TLS proxy (nginx/Traefik/host Caddy, Caddy disabled):
+#     docker compose -f compose.yaml -f compose.external.yaml up -d --build app
+#   Caddy for other sites + a host-level proxy for Morrow:
+#     docker compose -f compose.yaml -f compose.loopback.yaml up -d --build app caddy
+#   Dev (app on :3100, Caddy on 80/443):
+#     docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+# The overlays publish the app on MORROW_PROXY_BIND:MORROW_LOOPBACK_PORT
+# (default 127.0.0.1:3300). See docs/RUNBOOK.md ("TLS options").
+#
+# TODO(prod): every image tag below must be pinned by digest before a
+# production deploy. Tags are mutable; a digest is not. After `docker compose
+# pull`, list the pulled digests with:
+#   sg docker -c 'docker images --digests'
+# and replace `repo:tag` with `repo@sha256:<digest>` for each service.
+
+name: morrow
+
+services:
+  # One-shot volume prep. A fresh named volume is root-owned, while the app
+  # image runs as uid/gid 10001. This makes the shared provider/secret volumes
+  # writable by the app and readable (0600 keys) by the root sidecar.
+  # TODO(prod): pin this helper by digest with the opencode image below.
+  providers-init:
+    image: ghcr.io/anomalyco/opencode:2.2.5
+    user: "0:0"
+    restart: "no"
+    network_mode: "none"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mkdir -p /providers /secrets/providers
+        chown -R 10001:10001 /providers /secrets
+        chmod 0700 /providers /secrets /secrets/providers
+        find /providers -type f -exec chmod 0644 {} +
+        find /secrets -type f -exec chmod 0600 {} +
+    volumes:
+      - opencode-providers:/providers
+      - opencode-secrets:/secrets
+
+  # TODO(prod): pin Caddy by digest, e.g.
+  #   image: caddy@sha256:<digest>
+  #   sg docker -c 'docker images --digests caddy'
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      # The Caddyfile reads {$SITE_ADDRESS}; without this the variable never
+      # reaches the container and Caddy silently falls back to its own default
+      # (localhost auto-HTTPS), regardless of what .env says.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - edge
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # TODO(prod): publish the built app image and pin its digest, e.g.
+  #   image: ghcr.io/<org>/morrow-app@sha256:<digest>
+  #   sg docker -c 'docker images --digests morrow-app'
+  # Also pin the Dockerfile.app base image (node:22-bookworm-slim) by digest.
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "3000"
+      MCP_PORT: "3001"
+      # Bind the MCP listener only to the app's address on the internal `agent`
+      # network. 0.0.0.0 would also listen on the edge interface (Caddy's
+      # network), which must never reach MCP. Keep this equal to the
+      # ipv4_address on the agent network below.
+      MCP_HOST: "${MORROW_AGENT_IP:-172.30.250.10}"
+      TZ: ${TZ:-UTC}
+      # Use the same source for the sidecar password in both containers.
+      # MORROW_OPENCODE_PASSWORD wins so a host OPENCODE_PASSWORD exported for
+      # another tool can never desynchronise the app from the sidecar.
+      OPENCODE_PASSWORD: ${MORROW_OPENCODE_PASSWORD:-${OPENCODE_PASSWORD:?set OPENCODE_PASSWORD via ./deploy/init-env.sh}}
+      # Compose pins these container paths so the mounts below stay aligned.
+      # Change the mounts and these values together, never one side alone.
+      PROVIDER_OVERLAY_PATH: /data/opencode-providers/global.json
+      SECRETS_DIR: /data/secrets
+    volumes:
+      - app-data:/data
+      # Shared with the sidecar. Keep the directory (not a single file) so the
+      # backend's atomic rename is visible to OpenCode's config watcher.
+      - opencode-providers:/data/opencode-providers
+      # App's full SECRETS_DIR. The sidecar gets only the providers/ subpath at
+      # the same absolute path, so {file:/data/secrets/providers/...} resolves.
+      - opencode-secrets:/data/secrets
+    expose:
+      # Public app listener only. MCP (:3001) is deliberately absent: `expose`
+      # is per-container, not per-network, so listing it would not isolate
+      # anything. Isolation comes from MCP_HOST binding to the agent address
+      # below; the sidecar reaches app:3001 over the internal `agent` network.
+      - "3000"
+      # Defence in depth / firewall note: never publish 3001, and ensure the
+      # host or site firewall does not forward 3001 to this container. Caddy
+      # proxies only app:3000 and has no route to the internal agent network.
+    depends_on:
+      providers-init:
+        condition: service_completed_successfully
+    networks:
+      edge:
+      agent:
+        # Stable interface for MCP_HOST to bind to. Override
+        # MORROW_AGENT_SUBNET + MORROW_AGENT_IP together in .env.
+        ipv4_address: "${MORROW_AGENT_IP:-172.30.250.10}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # TODO(prod): pin OpenCode by digest, e.g.
+  #   image: ghcr.io/anomalyco/opencode@sha256:<digest>
+  #   sg docker -c 'docker images --digests ghcr.io/anomalyco/opencode'
+  opencode:
+    image: ghcr.io/anomalyco/opencode:2.2.5
+    command: ["serve", "--hostname", "0.0.0.0", "--port", "4096"]
+    restart: unless-stopped
+    # The pinned image's default HOME is /root; point it at the paths the
+    # compose bundle persists, and discover ./config/opencode.jsonc from the
+    # workspace while the overlay is loaded through OPENCODE_CONFIG.
+    working_dir: /workspace
+    environment:
+      HOME: /home/opencode
+      OPENCODE_PASSWORD: ${MORROW_OPENCODE_PASSWORD:-${OPENCODE_PASSWORD:?set OPENCODE_PASSWORD via ./deploy/init-env.sh}}
+      # Overlay is a custom config inside the global config directory:
+      # OpenCode merges it with the workspace project config, so the agent/MCP
+      # definitions and provider entries both apply. The singular `provider`
+      # shape is normalised by pinned 2.2.5.
+      OPENCODE_CONFIG: /home/opencode/.config/opencode/providers/global.json
+      REMINDERS_MCP_TOKEN: ${REMINDERS_MCP_TOKEN:?set REMINDERS_MCP_TOKEN via ./deploy/init-env.sh}
+    volumes:
+      # Read-only agent workspace config (M4 provides ./config/opencode.jsonc).
+      # Until M4 lands, create an empty ./config/opencode.jsonc placeholder or
+      # `docker compose up` will fail on this mount.
+      - ./config/opencode.jsonc:/workspace/opencode.jsonc:ro
+      # The system prompt is single-sourced from the agent package; the
+      # config references it as {file:./prompts/reminders.md}.
+      - ./packages/agent/prompts:/workspace/prompts:ro
+      # Global-config overlay directory (app writes /data/opencode-providers).
+      # OpenCode loads global.json through OPENCODE_CONFIG and hot-reloads after
+      # the backend's atomic rename. Sidecar reads only.
+      - opencode-providers:/home/opencode/.config/opencode/providers:ro
+      # Only the provider-key subtree of SECRETS_DIR, never the whole volume:
+      # the sidecar needs keys for model traffic and nothing else. The subpath
+      # keeps the absolute path used by
+      # {file:/data/secrets/providers/<id>.key} without exposing VAPID, backup
+      # HMAC, MCP, setup, session, or readyz secrets. Sidecar reads only.
+      - type: volume
+        source: opencode-secrets
+        target: /data/secrets/providers
+        read_only: true
+        volume:
+          subpath: providers
+      - opencode-config:/home/opencode/.config/opencode
+      - opencode-data:/home/opencode/.local/share/opencode
+      - opencode-state:/home/opencode/.local/state/opencode
+      - opencode-cache:/home/opencode/.cache/opencode
+    expose:
+      # Private agent network only; never publish 4096. The sidecar also joins
+      # the dedicated non-internal `egress` network below for cloud model
+      # inference. MCP stays reachable only over `agent`.
+      - "4096"
+    networks:
+      - agent
+      - egress
+    depends_on:
+      providers-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'wget -q -O /dev/null --header="Authorization: Basic $$(printf "opencode:%s" "$$OPENCODE_PASSWORD" | base64)" http://127.0.0.1:4096/api/info',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  app-data:
+  # Shared overlay directory (app rw, sidecar ro).
+  opencode-providers:
+  # App's whole SECRETS_DIR (app rw). The sidecar mounts only its
+  # `providers/` subpath read-only, so other secrets stay app-only.
+  opencode-secrets:
+  caddy-data:
+  caddy-config:
+  opencode-config:
+  opencode-data:
+  opencode-state:
+  opencode-cache:
+
+networks:
+  # Front-door network (Caddy or a proxy container). The app also publishes
+  # loopback ports for host-level proxies; Docker NAT makes those peers the
+  # edge gateway. Keep TRUST_PROXY aligned with this subnet when the app runs
+  # in Docker. Override MORROW_EDGE_SUBNET if it collides with the host.
+  edge:
+    ipam:
+      config:
+        - subnet: "${MORROW_EDGE_SUBNET:-172.22.0.0/16}"
+  # Sidecar-only network. `internal: true` means no host/LAN route; MCP stays
+  # private and the app is the only service the sidecar can reach here. The
+  # fixed subnet gives MCP a stable address to bind to (MCP_HOST above).
+  agent:
+    internal: true
+    ipam:
+      config:
+        - subnet: "${MORROW_AGENT_SUBNET:-172.30.250.0/24}"
+  # Dedicated outbound path for the OpenCode sidecar only (cloud provider
+  # inference). Deliberately not internal, but the app, Caddy and MCP are not
+  # attached: the sidecar can dial the internet, while nothing on this network
+  # can dial 4096/3001 and no port is published.
+  egress:

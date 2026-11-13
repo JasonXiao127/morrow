@@ -1,0 +1,111 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1762100000000,
+      "tag": "0001_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793665048166,
+      "tag": "0002_provider_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793735519564,
+      "tag": "0003_agent_run_error",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794000000000,
+      "tag": "0004_product_features",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794000100000,
+      "tag": "0005_list_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794000200000,
+      "tag": "0006_owner_roles_and_token_kinds",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794000300000,
+      "tag": "0007_caldav_vtodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1794000400000,
+      "tag": "0008_caldav_change_journal",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794000500000,
+      "tag": "0009_caldav_per_list_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794000600000,
+      "tag": "0010_per_collection_identities",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794000700000,
+      "tag": "0011_caldav_attachment_journal",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794000800000,
+      "tag": "0012_recurrence_exceptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1794000900000,
+      "tag": "0013_move_exception_journal",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1794175985444,
+      "tag": "0014_v03_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1794271800000,
+      "tag": "0015_activity_entity_action_idx",
+      "breakpoints": true
+    }
+  ]
+}

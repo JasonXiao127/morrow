@@ -1,0 +1,68 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Local field-test harness (plan: morrow-local-opencode-harness).
+  // Production `config/opencode.jsonc` and `compose.yaml` are unchanged.
+  // Mounted at /workspace by deploy/harness.sh (host networking, 127.0.0.1:4098).
+  "default_agent": "reminders",
+  "agents": {
+    "reminders": {
+      "description": "Self-hosted reminders assistant",
+      "mode": "primary",
+      "system": "{file:/workspace/prompts/reminders.md}",
+      "steps": 8,
+      // Later rules win. Keep the deny-all first and the reminders allow last.
+      "permissions": [
+        { "action": "*", "resource": "*", "effect": "deny" },
+        { "action": "morrow_reminders_*", "resource": "*", "effect": "allow" }
+      ]
+    }
+  },
+  // Defense in depth for 2.2.5. Permissions above remain the primary control.
+  "policies": [
+    { "action": "tool.use", "resource": "shell:*", "effect": "deny" },
+    { "action": "tool.use", "resource": "edit:*", "effect": "deny" },
+    { "action": "tool.use", "resource": "read:*", "effect": "deny" },
+    { "action": "tool.use", "resource": "webfetch:*", "effect": "deny" },
+    { "action": "tool.use", "resource": "websearch:*", "effect": "deny" }
+  ],
+  // Local provider for field testing. The harness runs with host networking,
+  // so 127.0.0.1 is the host's loopback (Ollama/LM Studio default).
+  // Pull a TOOL-CAPABLE model first (e.g. `ollama pull qwen2.5-coder:7b`)
+  // and select it in Settings → AI. Do not use `*-free` models for acceptance.
+  // For LM Studio, serve on the local network and use port 1234:
+  //   "lmstudio": {
+  //     "name": "LM Studio (local)",
+  //     "npm": "@ai-sdk/openai-compatible",
+  //     "options": { "baseURL": "http://127.0.0.1:1234/v1" },
+  //     "models": { "your-tool-capable-model": {} }
+  //   }
+  "provider": {
+    "ollama": {
+      "name": "Ollama (local)",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      },
+      "models": {
+        "qwen2.5-coder:7b": {}
+      }
+    }
+  },
+  "mcp": {
+    "servers": {
+      "morrow": {
+        "type": "remote",
+        "url": "http://127.0.0.1:3001/mcp",
+        "oauth": false,
+        "codemode": false,
+        "protocol": "auto",
+        "headers": { "Authorization": "Bearer {env:REMINDERS_MCP_TOKEN}" },
+        "timeout": {
+          "startup": 30000,
+          "catalog": 30000,
+          "execution": 30000
+        }
+      }
+    }
+  }
+}

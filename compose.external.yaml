@@ -1,0 +1,30 @@
+# External TLS reverse-proxy overlay (nginx, Traefik, HAProxy, host Caddy...).
+#
+# Usage:
+#   docker compose -f compose.yaml -f compose.external.yaml up -d --build app
+#
+# Point the proxy at http://127.0.0.1:${MORROW_LOOPBACK_PORT:-3300}, forward
+# Host + X-Forwarded-For/Proto, and keep SSE responses unbuffered. Then set in
+# .env:
+#   APP_URL=https://morrow.example.com
+#   TRUST_PROXY=172.22.0.0/16
+# Use the actual `edge` subnet (docker network inspect morrow_edge): the app
+# runs in Docker, so the peer is the edge gateway, not loopback. Use
+# 127.0.0.1/32 only when the app itself runs on the host. Add each extra hop
+# in a chain, comma-separated.
+#
+# If the proxy runs in another container, attach it to the `edge` network and
+# proxy to app:3000 instead. The loopback publish below is only for a proxy
+# running on this host. Set MORROW_PROXY_BIND=0.0.0.0 only if a remote proxy
+# cannot reach loopback, and firewall the port accordingly.
+#
+# SITE_ADDRESS is cleared for the app because SITE_ADDRESS describes the
+# bundled Caddy; leaving it set would log a misleading mismatch warning.
+services:
+  app:
+    ports:
+      - "${MORROW_PROXY_BIND:-127.0.0.1}:${MORROW_LOOPBACK_PORT:-3300}:3000"
+    environment:
+      SITE_ADDRESS: ""
+  caddy:
+    profiles: ["disabled"]

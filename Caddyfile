@@ -1,0 +1,80 @@
+# Morrow v0.1 Caddyfile (M0 scaffold, plan §7 SSE + §8 web + §10 deployment).
+#
+# - Only public entrypoint (80/443); reverse proxy to app:3000.
+# - SSE streams (/api/events, assistant stream) get `flush_interval -1` and NO
+#   compression; everything else may use encode. Never `encode` text/event-stream.
+# - Set SITE_ADDRESS to your host (e.g. morrow.example.com) or use :80 for
+#   plain HTTP. A hostname enables automatic HTTPS; localhost uses Caddy's
+#   internal CA. Caddy provides automatic TLS for real domains (see RUNBOOK.md).
+# - This is the bundled single-site front door. To serve more hostnames, add
+#   another site block below, for example:
+#
+#       other.example.com {
+#           reverse_proxy other-service:3000
+#       }
+#
+#   Keep Morrow's CSP and SSE rules scoped to its block; other apps should
+#   define their own headers. See docs/RUNBOOK.md ("Multiple sites").
+# - If Tailscale Serve or an external proxy owns TLS, use
+#   compose.tailscale.yaml / compose.external.yaml; Caddy is disabled there.
+#   To keep Caddy for other sites and also publish Morrow to a host-level
+#   proxy, use compose.loopback.yaml.
+
+{
+	admin off
+}
+
+{$SITE_ADDRESS:localhost} {
+	# Access log with credential-bearing query values redacted. Calendar feeds
+	# and the email webhook keep query-token compatibility for dumb clients, so
+	# `/api/calendar.ics?token=…` and `/api/inbound/email?token=…` must never
+	# write the token to disk. Keep this list in sync with
+	# apps/server/src/logging.ts (see apps/server/test/logging.test.ts).
+	log {
+		format filter {
+			wrap console
+			fields {
+				request>uri query {
+					replace token [REDACTED]
+					replace access_token [REDACTED]
+					replace api_key [REDACTED]
+					replace key [REDACTED]
+					replace signature [REDACTED]
+					replace password [REDACTED]
+				}
+			}
+		}
+	}
+
+	# Security headers (app also sends no-store on /api/*, /healthz, /readyz;
+	# CSP is strict by plan §8).
+	# The CSP below must stay directive-for-directive equal to the app's
+	# helmet policy; apps/server/test/headers.test.ts fails on drift. Never add
+	# upgrade-insecure-requests (it breaks plain-http development and LAN use).
+	# HSTS is meaningful only on the HTTPS site; Caddy adds it at the TLS edge.
+	# COOP (same-origin) is emitted by the app; browsers ignore it on plain http.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; connect-src 'self'; img-src 'self' data:; worker-src 'self'"
+		-Server
+	}
+
+	# SSE / streaming endpoints: no encode, immediate flush.
+	@sse {
+		path /api/events /api/assistant/conversations/*/stream
+	}
+	handle @sse {
+		reverse_proxy app:3000 {
+			flush_interval -1
+		}
+	}
+
+	# Everything else (static PWA + REST): compression OK.
+	handle {
+		encode zstd gzip
+		reverse_proxy app:3000
+	}
+}

@@ -1,0 +1,32 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Native/runtime packages whose lifecycle scripts must run.
+# pnpm 9 runs dependency scripts by default; pnpm >=10 uses `allowBuilds`.
+minimumReleaseAgeExclude:
+  - "@tailwindcss/node@4.3.4"
+  - "@tailwindcss/oxide-android-arm64@4.3.4"
+  - "@tailwindcss/oxide-darwin-arm64@4.3.4"
+  - "@tailwindcss/oxide-darwin-x64@4.3.4"
+  - "@tailwindcss/oxide-freebsd-x64@4.3.4"
+  - "@tailwindcss/oxide-linux-arm-gnueabihf@4.3.4"
+  - "@tailwindcss/oxide-linux-arm64-gnu@4.3.4"
+  - "@tailwindcss/oxide-linux-arm64-musl@4.3.4"
+  - "@tailwindcss/oxide-linux-x64-gnu@4.3.4"
+  - "@tailwindcss/oxide-linux-x64-musl@4.3.4"
+  - "@tailwindcss/oxide-wasm32-wasi@4.3.4"
+  - "@tailwindcss/oxide-win32-arm64-msvc@4.3.4"
+  - "@tailwindcss/oxide-win32-x64-msvc@4.3.4"
+  - "@tailwindcss/oxide@4.3.4"
+  - "@tailwindcss/vite@4.3.4"
+  - "@tanstack/query-core@5.105.3"
+  - "@tanstack/query-persist-client-core@5.105.3"
+  - "@tanstack/react-query-persist-client@5.105.3"
+  - "@tanstack/react-query@5.105.3"
+  - tailwindcss@4.3.4
+
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+  "@tailwindcss/oxide": true

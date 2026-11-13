@@ -1,0 +1,19 @@
+# Loopback overlay: publish the app for a host-level proxy while keeping the
+# bundled Caddy available for other sites.
+#
+# Usage (Caddy stays on 80/443 for its own sites; Tailscale Serve gets Morrow
+# on a private port):
+#   docker compose -f compose.yaml -f compose.loopback.yaml up -d --build app caddy
+#   tailscale serve --bg --https=8443 http://127.0.0.1:3300
+#
+# Set APP_URL to the canonical origin (for example the Tailscale URL) and
+# TRUST_PROXY to the `edge` subnet as described in compose.tailscale.yaml.
+# Caddy keeps its own SITE_ADDRESS; the app's copy is cleared because APP_URL
+# names a different front door. Its Morrow site, if left in Caddyfile, is an
+# alternate origin with a separate session (see RUNBOOK, "Multiple sites").
+services:
+  app:
+    ports:
+      - "${MORROW_PROXY_BIND:-127.0.0.1}:${MORROW_LOOPBACK_PORT:-3300}:3000"
+    environment:
+      SITE_ADDRESS: ""
