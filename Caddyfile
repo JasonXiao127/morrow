@@ -41,7 +41,18 @@
 					replace key [REDACTED]
 					replace signature [REDACTED]
 					replace password [REDACTED]
+					replace setup_token [REDACTED]
+					replace readyz_token [REDACTED]
 				}
+				# Caddy redacts Authorization, Cookie and Set-Cookie by
+				# default; these custom credential headers are not covered.
+				# Keep this list in sync with logging.ts.
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+				request>headers>X-Readyz-Token delete
+				request>headers>X-Step-Up-Token delete
+				request>headers>X-Morrow-Token delete
+				request>headers>X-Api-Key delete
 			}
 		}
 	}

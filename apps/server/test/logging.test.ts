@@ -76,7 +76,24 @@ describe("Caddy access-log redaction", () => {
     expect(caddyfile).toMatch(/replace token \[REDACTED\]/);
     expect(caddyfile).toMatch(/replace access_token \[REDACTED\]/);
     expect(caddyfile).toMatch(/replace api_key \[REDACTED\]/);
+    expect(caddyfile).toMatch(/replace setup_token \[REDACTED\]/);
+    expect(caddyfile).toMatch(/replace readyz_token \[REDACTED\]/);
     // Bare `log` would emit request.uri with the token verbatim.
     expect(caddyfile).not.toMatch(/^\s*log\s*$/m);
+  });
+
+  it("deletes credential-bearing request headers", () => {
+    // Caddy already redacts Authorization, Cookie and Set-Cookie, but the
+    // custom step-up/readyz/MCP headers are not covered by its defaults.
+    for (const header of [
+      "Authorization",
+      "Cookie",
+      "X-Readyz-Token",
+      "X-Step-Up-Token",
+      "X-Morrow-Token",
+      "X-Api-Key",
+    ]) {
+      expect(caddyfile).toContain(`request>headers>${header} delete`);
+    }
   });
 });

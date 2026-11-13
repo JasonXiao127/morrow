@@ -65,6 +65,7 @@ export const LOG_REDACT_PATHS = [
   "req.headers.authorization",
   "req.headers.cookie",
   "req.headers['x-readyz-token']",
+  "req.headers['x-step-up-token']",
   "req.headers['x-morrow-token']",
   "req.headers['x-api-key']",
   "req.query.token",
