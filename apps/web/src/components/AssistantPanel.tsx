@@ -113,11 +113,12 @@ export function AssistantPanel({ onClose }: { onClose?: () => void }) {
   const [toolName, setToolName] = useState<string | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [lastError, setLastError] = useState<ConversationLastError | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
+  const [bootstrapNonce, setBootstrapNonce] = useState(0);
   const [creatingNew, setCreatingNew] = useState(false);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const createAttempted = useRef(false);
+  const bootstrapRef = useRef<Promise<string> | null>(null);
   const lastEventId = useRef<number | null>(null);
 
   const dismissKey = conversationId
@@ -180,36 +181,44 @@ export function AssistantPanel({ onClose }: { onClose?: () => void }) {
   // Pick or create one interactive conversation. Offline/off still shows any
   // stored transcript, but never creates a session that cannot be used.
   useEffect(() => {
-    if (conversationId || !ready || creating || createAttempted.current) return;
-    let cancelled = false;
-    createAttempted.current = true;
-    setCreating(true);
-    void (async () => {
-      try {
-        const listed = await assistantApi.listConversations();
-        const existing = listed.conversations[0]?.id ?? null;
-        if (existing) {
-          if (!cancelled) {
-            setConversationId(existing);
-            storeConversation(existing);
-          }
-          return;
+    if (conversationId || !ready) return;
+    let active = true;
+    setBootstrapError(null);
+
+    // Keep one in-flight bootstrap across React StrictMode's mount/unmount
+    // cycle. The request must not be cancelled just because this effect ran
+    // again: doing so strands the panel on "Preparing the assistant…".
+    if (!bootstrapRef.current) {
+      bootstrapRef.current = (async () => {
+        try {
+          const listed = await assistantApi.listConversations();
+          const existing = listed.conversations[0]?.id ?? null;
+          if (existing) return existing;
+          const created = await assistantApi.createConversation(
+            "Morrow assistant",
+          );
+          return created.conversation.id;
+        } finally {
+          bootstrapRef.current = null;
         }
-        const created = await assistantApi.createConversation("Morrow assistant");
-        if (!cancelled) {
-          setConversationId(created.conversation.id);
-          storeConversation(created.conversation.id);
-        }
-      } catch (error) {
-        if (!cancelled) toast.error(apiErrorMessage(error));
-      } finally {
-        if (!cancelled) setCreating(false);
-      }
-    })();
+      })();
+    }
+
+    void bootstrapRef.current
+      .then((id) => {
+        if (!active) return;
+        setConversationId(id);
+        storeConversation(id);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setBootstrapError(apiErrorMessage(error));
+      });
+
     return () => {
-      cancelled = true;
+      active = false;
     };
-  }, [conversationId, creating, ready]);
+  }, [conversationId, ready, bootstrapNonce]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -435,6 +444,12 @@ export function AssistantPanel({ onClose }: { onClose?: () => void }) {
     void statusQuery.refetch();
   };
 
+  const retryBootstrap = () => {
+    bootstrapRef.current = null;
+    setBootstrapError(null);
+    setBootstrapNonce((value) => value + 1);
+  };
+
   const startNewConversation = async () => {
     if (creatingNew) return;
     setCreatingNew(true);
@@ -448,6 +463,7 @@ export function AssistantPanel({ onClose }: { onClose?: () => void }) {
       setProposals([]);
       setDraft("");
       setLastError(null);
+      setBootstrapError(null);
       setStreamError(null);
       setToolName(null);
     } catch (error) {
@@ -457,7 +473,7 @@ export function AssistantPanel({ onClose }: { onClose?: () => void }) {
     }
   };
 
-  const preparing = ready && !conversationId;
+  const preparing = ready && !conversationId && !bootstrapError;
   const disabled = !ready || !conversationId || sending || running;
   const agentLabel = statusLabel(status);
   const showSetup =
@@ -541,6 +557,35 @@ export function AssistantPanel({ onClose }: { onClose?: () => void }) {
             </button>
           </div>
         ) : null}
+        {bootstrapError && ready && !conversationId ? (
+          <div
+            className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5"
+            role="alert"
+          >
+            <p className="text-13 font-semibold text-ink">
+              The assistant could not start.
+            </p>
+            <p className="mt-1 break-words text-12 text-muted">
+              {bootstrapError}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary min-h-11 px-3 text-12"
+                onClick={retryBootstrap}
+              >
+                Try again
+              </button>
+              <Link
+                to="/settings"
+                search={{ section: "ai" }}
+                className="text-12 font-semibold text-accent underline underline-offset-2"
+              >
+                Settings → AI
+              </Link>
+            </div>
+          </div>
+        ) : null}
         {messages.length === 0 && !draft ? (
           <>
             <p className="serif text-22 leading-tight text-ink">
@@ -553,7 +598,7 @@ export function AssistantPanel({ onClose }: { onClose?: () => void }) {
                   key={suggestion.label}
                   type="button"
                   onClick={() => void send(suggestion.prompt)}
-                  disabled={!ready}
+                  disabled={disabled}
                   className="flex min-h-11 w-full items-center gap-2.5 rounded-md border border-hairline bg-canvas px-3 text-left text-13 text-ink-soft transition-colors hover:border-hairline-strong hover:bg-selection disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="text-accent">{suggestion.icon}</span>
@@ -687,7 +732,9 @@ export function AssistantPanel({ onClose }: { onClose?: () => void }) {
                 ? "Assistant is off. Morrow works without it."
                 : preparing
                   ? "Preparing the assistant…"
-                  : "Ask Morrow to plan, triage, or change one thing…"
+                  : bootstrapError && !conversationId
+                    ? "The assistant could not start. Try again above."
+                    : "Ask Morrow to plan, triage, or change one thing…"
             }
             rows={2}
             value={input}

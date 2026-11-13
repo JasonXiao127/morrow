@@ -30,9 +30,17 @@ async function ensureAuth(page) {
     await page.keyboard.press("Enter");
     await expect(todayHeading).toBeVisible({ timeout: 15_000 });
   }
-}// M4 browser assertions (§4): with no sidecar the assistant is honestly off.
-// When a harness sidecar is present these same selectors prove the chat,
-// proposal apply/undo, and error reload paths render (no silent failure).
+}
+
+async function assistantStatus(page) {
+  return page.evaluate(async () => {
+    const res = await fetch("/api/assistant/status");
+    const body = await res.json().catch(() => null);
+    return body?.status ?? null;
+  });
+}
+
+// M4 browser assertions (§4): with no sidecar the assistant is honestly off.
 test("assistant: AI-off is honest, no surprises", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "desktop-only; mobile covered by mobile.spec.ts");
   await ensureAuth(page);
@@ -42,7 +50,9 @@ test("assistant: AI-off is honest, no surprises", async ({ page }, testInfo) => 
     const body = await res.json().catch(() => null);
     return body?.agent ?? null;
   });
-  // E2E runs without OpenCode; the app must say so, not fake readiness.
+  // This test runs against the default AI-off deployment. When a harness
+  // sidecar is present, the ready-path test below covers the panel instead.
+  test.skip(Boolean(status?.enabled), "AI is configured; see the ready-path test");
   expect(status).toBeTruthy();
   expect(status.enabled).toBe(false);
 
@@ -51,4 +61,25 @@ test("assistant: AI-off is honest, no surprises", async ({ page }, testInfo) => 
   await expect(page.getByText(/AI|Assistant/i).first()).toBeVisible({
     timeout: 15_000,
   });
+});
+
+// This is the regression gate for the panel's conversation bootstrap. A
+// sidecar is not required for the AI-off test above, but it is required here.
+test("assistant: ready panel enables the composer", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop-only; mobile covered by mobile.spec.ts");
+  await ensureAuth(page);
+
+  const status = await assistantStatus(page);
+  test.skip(
+    !status || status.status !== "ready" || !status.available,
+    "requires a ready OpenCode sidecar",
+  );
+
+  await page.goto("/assistant");
+  const composer = page.getByRole("textbox", { name: "Ask the assistant" });
+  await expect(composer).toBeEnabled({ timeout: 30_000 });
+  await expect(composer).toHaveAttribute(
+    "placeholder",
+    /Ask Morrow to plan, triage, or change one thing/,
+  );
 });

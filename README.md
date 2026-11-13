@@ -141,7 +141,7 @@ full matrix, multi-site Caddy notes, and multi-origin behaviour.
   (e.g. `http://localhost:3100`); same-origin requests work either way, but
   absolute links use `APP_URL`.
 - `pnpm typecheck` — all workspaces.
-- `pnpm test` — Vitest unit/integration (625 tests: server 395, web 107, shared 56, db 39, agent 28).
+- `pnpm test` — Vitest unit/integration (629 tests: server 395, web 111, shared 56, db 39, agent 28).
 - `pnpm e2e` / `./e2e.sh` — fresh DB + Node API (28 pass, 0 pending) + real
   Playwright browser gate (desktop + mobile 390px, reminder firing via ledger,
   AI-off honesty, keyboard path, tags/subtasks/attachments/calendar/settings).

@@ -56,7 +56,7 @@ exactly those after `pnpm install --frozen-lockfile`.
 
 ## Test matrix
 
-- **Unit/integration (CI):** 625 tests today — server 395, web 107, shared 56,
+- **Unit/integration (CI):** 629 tests today — server 395, web 111, shared 56,
   db 39, agent 28. Add tests next to the code you change. Server tests use
   `apps/server/test/helpers.ts` for temp DBs and app instances.
 - **Invariant coverage:** agent policy, proposal/undo behavior, authorization,

@@ -1,9 +1,10 @@
 # Web unit tests
 
-`apps/web` uses [Vitest](https://vitest.dev/) for pure-logic unit tests. The
-suite runs in the `node` environment: no browser, jsdom, or happy-dom is
-needed. Event-bus modules use a small `EventTarget` fake, IndexedDB is mocked,
-and React hooks are not exercised here.
+`apps/web` uses [Vitest](https://vitest.dev/) for unit and component tests. The
+default suite runs in the `node` environment: pure-logic tests need no browser
+or DOM. Event-bus modules use a small `EventTarget` fake and IndexedDB is
+mocked. Component tests opt in per file with `// @vitest-environment jsdom` and
+use `@testing-library/react`; only the assistant panel currently needs a DOM.
 
 ## Run
 
@@ -35,16 +36,20 @@ pnpm --filter @morrow/web exec vitest run test/schedule.test.ts
 | `undo.test.ts` | Undo registration, persistence cap, activity-history undo, local fallbacks, conflict reporting. |
 | `task-cache.test.ts` | Paginated list updates, bootstrap/detail sync, upserts/removals, snapshot rollback. |
 | `push-dedupe.test.ts` | Service-worker delivery dedupe, payload normalisation, VAPID key decoding. |
+| `assistant-panel.test.tsx` | Assistant conversation bootstrap: existing/new conversation, StrictMode, failure and retry. |
 
 `vitest.config.ts` pins `TZ=America/New_York` so the DST assertions are
 deterministic on any machine.
 
 ## Browser E2E stays separate
 
-Browser end-to-end tests live in `apps/web/e2e/` and use Playwright against a
-real server and database. They are intentionally not part of
+Browser end-to-end tests live in `apps/web/e2e-browser/` (Playwright) and the
+Node API suite in `apps/web/e2e/`. They are intentionally not part of
 `pnpm --filter @morrow/web test`; run them from the repository root with:
 
 ```bash
 ./e2e.sh
 ```
+
+The assistant AI-off test runs in the default suite. Its ready-path companion
+skips unless `/api/assistant/status` reports a ready OpenCode sidecar.

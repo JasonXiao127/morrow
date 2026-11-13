@@ -59,11 +59,16 @@ side effect of code changes. The local AI harness is documented in
   `pnpm test` on Node 22 with pnpm 9.12.3. Build first: workspace packages
   resolve each other through `dist/*` declarations on a clean runner. Keep all
   four green.
-- The current suite is 625 tests: server 395, web 107, shared 56, db 39, agent
+- The current suite is 629 tests: server 395, web 111, shared 56, db 39, agent
   28. Counts may grow; do not weaken or delete tests to pass.
 - Add focused tests for behavior changes. Server integration tests use the
   in-memory/temp-DB helpers in `apps/server/test/helpers.ts`; policy and undo
   invariants have dedicated tests.
+- A confirmed P0/P1 browser-QA finding is an open bug. Convert it into a failing
+  automated test (or a tracked issue with an owner) before calling the QA pass
+  complete; a QA report alone is not a release gate. Run `./e2e.sh` before
+  publishing a snapshot. The assistant ready-path browser test skips unless a
+  ready OpenCode sidecar is configured.
 - `pnpm e2e`, the OpenCode contract suite, and live model checks are manual and
   need extra services. Never call a paid model provider in automated tests.
 - Do not commit generated `dist/`, `data/`, `.env`, backups, or test artifacts.
