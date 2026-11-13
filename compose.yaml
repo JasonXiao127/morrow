@@ -82,6 +82,9 @@ services:
       context: .
       dockerfile: Dockerfile.app
     restart: unless-stopped
+    # Allow the SIGTERM handler to stop the scheduler, close Fastify and
+    # checkpoint the WAL before Docker kills the process.
+    stop_grace_period: 30s
     env_file:
       - .env
     environment:
@@ -145,6 +148,7 @@ services:
     image: ghcr.io/anomalyco/opencode:2.2.5
     command: ["serve", "--hostname", "0.0.0.0", "--port", "4096"]
     restart: unless-stopped
+    stop_grace_period: 30s
     # The pinned image's default HOME is /root; point it at the paths the
     # compose bundle persists, and discover ./config/opencode.jsonc from the
     # workspace while the overlay is loaded through OPENCODE_CONFIG.

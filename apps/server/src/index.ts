@@ -373,6 +373,14 @@ async function main(): Promise<void> {
       await app.close();
     } finally {
       closeAssistant();
+      // App.close() stops the scheduler through its onClose hook. Flush the
+      // WAL before the final connection close so an abrupt container stop
+      // leaves no uncheckpointed frames beside the database.
+      try {
+        getDb().pragma("wal_checkpoint(TRUNCATE)");
+      } catch (error) {
+        app.log.warn({ err: error }, "database WAL checkpoint failed");
+      }
       closeDb();
     }
     process.exit(0);
