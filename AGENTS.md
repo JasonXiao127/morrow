@@ -55,8 +55,10 @@ side effect of code changes. The local AI harness is documented in
 
 ## Test expectations
 
-- CI runs `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm test`, and
-  `pnpm build` on Node 22 with pnpm 9.12.3. Keep all four green.
+- CI runs `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm typecheck`, and
+  `pnpm test` on Node 22 with pnpm 9.12.3. Build first: workspace packages
+  resolve each other through `dist/*` declarations on a clean runner. Keep all
+  four green.
 - The current suite is 625 tests: server 395, web 107, shared 56, db 39, agent
   28. Counts may grow; do not weaken or delete tests to pass.
 - Add focused tests for behavior changes. Server integration tests use the

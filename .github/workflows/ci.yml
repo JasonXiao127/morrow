@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Typecheck, test, build
+    name: Build, typecheck, test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,11 +30,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Workspace packages resolve each other through their built dist/*
+      # declarations. Build first on a clean runner, then typecheck and test.
+      - name: Build
+        run: pnpm build
+
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Test
         run: pnpm test
-
-      - name: Build
-        run: pnpm build
