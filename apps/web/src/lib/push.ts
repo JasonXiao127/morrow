@@ -21,6 +21,8 @@ export interface PushStatus {
   subscribed: boolean;
   standalone: boolean;
   ios: boolean;
+  /** False on a plain-HTTP LAN origin; Web Push needs a secure context. */
+  secureContext: boolean;
   loading: boolean;
   busy: boolean;
   error: string | null;
@@ -53,6 +55,10 @@ export function isStandalone(): boolean {
     window.matchMedia("(display-mode: standalone)").matches ||
     navigatorStandalone === true
   );
+}
+
+export function pushSecureContext(): boolean {
+  return typeof window !== "undefined" && window.isSecureContext === true;
 }
 
 export function pushSupported(): boolean {
@@ -109,7 +115,7 @@ async function fetchVapidKey(): Promise<string | null> {
  * Safe to call repeatedly; the server keys by endpoint hash.
  */
 export async function subscribeToPush(): Promise<PushSubscription | null> {
-  if (!pushSupported()) return null;
+  if (!pushSupported() || !pushSecureContext()) return null;
   if (Notification.permission === "denied") return null;
   if (Notification.permission === "default") {
     const permission = await Notification.requestPermission();
@@ -168,7 +174,13 @@ let launchResyncDone = false;
  * or the server lost the row.
  */
 export async function resyncPushSubscription(): Promise<boolean> {
-  if (!pushSupported() || Notification.permission !== "granted") return false;
+  if (
+    !pushSupported() ||
+    !pushSecureContext() ||
+    Notification.permission !== "granted"
+  ) {
+    return false;
+  }
   try {
     await subscribeToPush();
     return true;
@@ -188,6 +200,7 @@ export function usePushStatus(): PushStatus {
   const [error, setError] = useState<string | null>(null);
   const [standalone] = useState(isStandalone);
   const [ios] = useState(isIosDevice);
+  const [secureContext] = useState(pushSecureContext);
 
   const refresh = useCallback(async () => {
     if (!pushSupported()) {
@@ -311,6 +324,10 @@ export function usePushStatus(): PushStatus {
 
   const requestPermission = useCallback(async () => {
     if (!supported) return "unsupported" as const;
+    if (!pushSecureContext()) {
+      setError("Push needs HTTPS. Open Morrow at its secure address first.");
+      return "unsupported" as const;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -339,6 +356,7 @@ export function usePushStatus(): PushStatus {
     subscribed,
     standalone,
     ios,
+    secureContext,
     loading,
     busy,
     error,

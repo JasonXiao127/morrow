@@ -10,6 +10,7 @@ import {
   HardDrive,
   Info,
   KeyRound,
+  Lock,
   LogOut,
   Monitor,
   Moon,
@@ -1230,6 +1231,13 @@ export function SettingsPage() {
     // Never re-prompt after denial: Notification.requestPermission() after a
     // denial is a no-op in most browsers and an annoyance in all of them.
     if (push.permission === "denied") return;
+    if (!push.secureContext) {
+      toast.error("Push needs HTTPS", {
+        description:
+          "Open Morrow at its secure address before enabling notifications.",
+      });
+      return;
+    }
     const result = await push.requestPermission();
     if (result === "granted") {
       await push.refresh();
@@ -1252,6 +1260,13 @@ export function SettingsPage() {
   };
 
   const finishRegistration = async () => {
+    if (!push.secureContext) {
+      toast.error("Push needs HTTPS", {
+        description:
+          "Open Morrow at its secure address before registering this device.",
+      });
+      return;
+    }
     const subscription = await push.subscribe();
     await push.refresh();
     if (subscription) {
@@ -1816,6 +1831,18 @@ export function SettingsPage() {
                 </div>
               ) : null}
 
+              {!push.secureContext ? (
+                <div
+                  className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-12 leading-relaxed text-warning"
+                  role="note"
+                >
+                  <Lock className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+                  Push needs a secure HTTPS origin. Open Morrow at its HTTPS
+                  address (not a plain HTTP LAN address) before enabling
+                  notifications.
+                </div>
+              ) : null}
+
               <Panel
                 title="This device"
                 description="Push subscription and install state are checked at launch. A granted permission with a missing subscription is repaired automatically."
@@ -1887,7 +1914,7 @@ export function SettingsPage() {
                       type="button"
                       className="btn btn-primary"
                       onClick={() => void enableNotifications()}
-                      disabled={!push.supported || push.busy}
+                      disabled={!push.supported || !push.secureContext || push.busy}
                       aria-busy={push.busy}
                     >
                       <Bell className="h-4 w-4" aria-hidden="true" />
@@ -1899,7 +1926,7 @@ export function SettingsPage() {
                       type="button"
                       className="btn btn-primary"
                       onClick={() => void finishRegistration()}
-                      disabled={push.busy}
+                      disabled={!push.secureContext || push.busy}
                       aria-busy={push.busy}
                     >
                       <Bell className="h-4 w-4" aria-hidden="true" />

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, BellOff, Smartphone, WifiOff } from "lucide-react";
+import { Bell, BellOff, Lock, Smartphone, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useOnline } from "@/lib/hooks";
 import { usePushStatus } from "@/lib/push";
@@ -42,6 +42,12 @@ export function ArmedState() {
     tone = "muted";
     icon = <WifiOff className="h-4 w-4" aria-hidden="true" />;
     message = "Offline. Reminders are safe on the server; this view is showing saved data.";
+  } else if (!push.secureContext) {
+    tone = "warning";
+    icon = <Lock className="h-4 w-4" aria-hidden="true" />;
+    message =
+      "Push needs HTTPS. Open Morrow at its secure address to enable reminders.";
+    action = { label: "Why HTTPS?", toSettings: true };
   } else if (!push.supported) {
     tone = "warning";
     icon = <BellOff className="h-4 w-4" aria-hidden="true" />;
