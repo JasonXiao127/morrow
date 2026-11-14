@@ -62,6 +62,26 @@ correctness come before new surface area.
 7. **Scheduling depth.** More recurrence editing affordances, smarter
    rescheduling suggestions, and calendar views beyond the current month grid.
 
+### P2 — Assistant latency and approval ergonomics
+
+- **Context snapshot without a 12th tool.** Inject a compact lists/today/next-7d
+  snapshot into the first prompt instead of adding
+  `reminders_context_snapshot`; keep the documented 11-tool surface and
+  measure round-trips with the harness.
+- **Proposal UX.** Add approve-all, keyboard flow, and an inline undo receipt
+  for approved batches. This addresses approval fatigue without weakening the
+  one-item-immediate / multi-item-proposal invariant.
+- **Taint provenance and adaptive autonomy.** A real 3-tier policy needs a
+  single batch operation with a shared undo batch and task provenance
+  (`owner`, `capture`, `caldav`, `email`). Do not relax the immediate-write
+  invariant until that design has policy, undo, and injection tests.
+- **AI run metrics.** Record latency, tokens, tool calls, and taint state with
+  the existing text timestamps; use the data to decide whether a
+  `DirectProviderDriver` is worth a second runtime. Do not duplicate the
+  `proposals` table with `ai_proposals`.
+- **Per-turn MCP auth.** Only revisit if OpenCode exposes a per-turn MCP header
+  channel or a small proxy is added. The pinned remote-MCP config is static.
+
 ### P3 — Clients and reach
 
 8. **iOS actionable notifications / native client.** Safari ignores
