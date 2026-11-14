@@ -28,7 +28,9 @@ compose() {
 
 if compose ps --status running --services 2>/dev/null | grep -qx "app"; then
   echo "1/4 snapshotting SQLite before the upgrade..."
-  compose exec -T app node --input-type=commonjs - <<'NODE'
+  # Run from packages/db so pnpm's nested better-sqlite3 symlink resolves; the
+  # app's standalone /app working directory cannot require it.
+  compose exec -T -w /app/packages/db app node --input-type=commonjs - <<'NODE'
 const Database = require("better-sqlite3");
 const fs = require("node:fs");
 const path = require("node:path");
