@@ -59,7 +59,7 @@ side effect of code changes. The local AI harness is documented in
   `pnpm test` on Node 22 with pnpm 9.12.3. Build first: workspace packages
   resolve each other through `dist/*` declarations on a clean runner. Keep all
   four green.
-- The current suite is 629 tests: server 395, web 111, shared 56, db 39, agent
+- The current suite is 653 tests: server 399, web 131, shared 56, db 39, agent
   28. Counts may grow; do not weaken or delete tests to pass.
 - Add focused tests for behavior changes. Server integration tests use the
   in-memory/temp-DB helpers in `apps/server/test/helpers.ts`; policy and undo

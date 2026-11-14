@@ -34,6 +34,7 @@ import {
   taskList,
 } from "@/lib/format";
 import {
+  useAppData,
   useDeleteTask,
   useTaskActions,
   useUpdateTask,
@@ -45,7 +46,7 @@ import {
   scheduleFields,
   scheduleForTask,
   snoozeLabel,
-  toDateTimeLocal,
+  toDateTimeLocalInZone,
   tomorrowAtNine,
 } from "@/lib/schedule";
 import { useUndoState } from "@/lib/undo";
@@ -80,6 +81,9 @@ export function TaskDetail({
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const undo = useUndoState();
+  const { user } = useAppData();
+  const accountTimezone =
+    user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const done = isDoneTask(task);
   const overdue = isTaskOverdue(task);
   const snoozed = isTaskSnoozed(task);
@@ -98,7 +102,9 @@ export function TaskDetail({
   const [listId, setListId] = useState(task.listId ?? "");
   const [allDay, setAllDay] = useState(Boolean(task.allDay));
   const [dateValue, setDateValue] = useState(
-    task.allDay ? (task.dueDate ?? "").slice(0, 10) : toDateTimeLocal(task.dueAt),
+    task.allDay
+      ? (task.dueDate ?? "").slice(0, 10)
+      : toDateTimeLocalInZone(task.dueAt, accountTimezone),
   );
   const [recurrenceValueState, setRecurrenceValueState] = useState(
     recurrenceValue(task.rrule),
@@ -121,9 +127,11 @@ export function TaskDetail({
     task.recurrenceCount != null ? String(task.recurrenceCount) : "10",
   );
   const [remindOffset, setRemindOffset] = useState<string>(() =>
-    task.remindOffsetMinutes == null
-      ? "0"
-      : String(task.remindOffsetMinutes),
+    task.remindAt == null
+      ? "none"
+      : task.remindOffsetMinutes == null
+        ? "0"
+        : String(task.remindOffsetMinutes),
   );
   const [customOffset, setCustomOffset] = useState<string>(() =>
     task.remindOffsetMinutes != null &&
@@ -145,7 +153,7 @@ export function TaskDetail({
   // we are not mid-edit.
   useEffect(() => {
     if (editing) return;
-    const schedule = scheduleForTask(task);
+    const schedule = scheduleForTask(task, accountTimezone);
     setTitle(task.title);
     setNotes(task.notes ?? "");
     setListId(task.listId ?? "");
@@ -166,7 +174,11 @@ export function TaskDetail({
       task.recurrenceCount != null ? String(task.recurrenceCount) : "10",
     );
     setRemindOffset(
-      task.remindOffsetMinutes == null ? "0" : String(task.remindOffsetMinutes),
+      task.remindAt == null
+        ? "none"
+        : task.remindOffsetMinutes == null
+          ? "0"
+          : String(task.remindOffsetMinutes),
     );
     setCustomOffset(
       task.remindOffsetMinutes != null &&
@@ -177,7 +189,7 @@ export function TaskDetail({
         : "",
     );
     setReminderTime((task.reminderTimeLocal ?? "09:00:00").slice(0, 5));
-  }, [editing, task]);
+  }, [accountTimezone, editing, task]);
 
   // D / R keyboard shortcuts focus the matching field and enter edit mode.
   useEffect(() => {
@@ -222,12 +234,15 @@ export function TaskDetail({
       allDay,
       rrule: recurrenceValueState,
       customRrule,
+      timezone: accountTimezone,
     });
     // Reminder offset: preset values or a custom minute count (negative =
     // before due, 0 = at due time). Custom input is validated as an integer
     // in the allowed range.
     let nextOffset: number | null = null;
-    if (remindOffset === "custom") {
+    if (remindOffset === "none") {
+      nextOffset = null;
+    } else if (remindOffset === "custom") {
       const parsed = Number.parseInt(customOffset, 10);
       if (!Number.isSafeInteger(parsed) || parsed < -43_200 || parsed > 43_200) {
         setFormError("Custom reminder offset must be -43200…43200 minutes.");
@@ -237,7 +252,6 @@ export function TaskDetail({
     } else {
       const parsed = Number.parseInt(remindOffset, 10);
       nextOffset = Number.isSafeInteger(parsed) ? parsed : 0;
-      if (nextOffset === 0) nextOffset = 0;
     }
     // All-day reminder time (HH:mm); stored as HH:mm:00.
     let nextReminderTime: string | null = null;
@@ -258,9 +272,14 @@ export function TaskDetail({
     // Only send scheduling fields when the user actually changed them. A
     // title-only edit must not reset a recurring series' DTSTART to its next
     // occurrence (or clear an advanced next occurrence).
-    const base = scheduleForTask(editingTask ?? task);
+    const base = scheduleForTask(editingTask ?? task, accountTimezone);
     const baseTask = editingTask ?? task;
-    const baseOffset = baseTask.remindOffsetMinutes ?? 0;
+    const baseReminderValue =
+      baseTask.remindAt == null
+        ? "none"
+        : baseTask.remindOffsetMinutes == null
+          ? "0"
+          : String(baseTask.remindOffsetMinutes);
     const baseReminderTime = (
       baseTask.reminderTimeLocal ??
       "09:00:00"
@@ -299,7 +318,7 @@ export function TaskDetail({
       recurrenceValueState !== base.recurrence ||
       customRrule !== base.customRrule;
     const reminderChanged =
-      (nextOffset ?? 0) !== (baseOffset ?? 0) ||
+      remindOffset !== baseReminderValue ||
       (allDay ? reminderTime.trim().slice(0, 5) : null) !==
         (base.allDay ? baseReminderTime : null) ||
       (allDay !== base.allDay && allDay);
@@ -340,9 +359,15 @@ export function TaskDetail({
         patch.recurrenceCount = null;
       }
     }
-    if (reminderChanged || scheduleChanged) {
-      patch.remindOffsetMinutes = nextOffset;
-      if (allDay) patch.reminderTimeLocal = nextReminderTime;
+    if (reminderChanged) {
+      if (remindOffset === "none") {
+        patch.remindAt = null;
+        patch.remindOffsetMinutes = null;
+        patch.reminderTimeLocal = null;
+      } else {
+        patch.remindOffsetMinutes = nextOffset;
+        patch.reminderTimeLocal = allDay ? nextReminderTime : null;
+      }
     }
     setFormError(null);
     try {
@@ -662,6 +687,7 @@ export function TaskDetail({
                   value={remindOffset}
                   onChange={(event) => setRemindOffset(event.target.value)}
                 >
+                  <option value="none">No reminder</option>
                   <option value="0">At due time</option>
                   <option value="-10">10 min before</option>
                   <option value="-60">1 hour before</option>

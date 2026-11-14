@@ -408,6 +408,12 @@ export function recurrenceLabel(rrule: string | null | undefined): string | null
   const interval = intervalMatch ? Number(intervalMatch[1]) : 1;
   const every = interval > 1 ? `Every ${interval} ` : "Every ";
   if (/FREQ=DAILY/i.test(rrule)) return `${every}${interval > 1 ? "days" : "day"}`;
+  if (
+    /FREQ=WEEKLY/i.test(rrule) &&
+    /BYDAY=MO,TU,WE,TH,FR/i.test(rrule)
+  ) {
+    return "Every weekday";
+  }
   if (/FREQ=WEEKLY/i.test(rrule)) return `${every}${interval > 1 ? "weeks" : "week"}`;
   if (/FREQ=MONTHLY/i.test(rrule)) return `${every}${interval > 1 ? "months" : "month"}`;
   if (/FREQ=YEARLY/i.test(rrule)) return `${every}${interval > 1 ? "years" : "year"}`;

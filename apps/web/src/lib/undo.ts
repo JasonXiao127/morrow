@@ -6,11 +6,10 @@ import {
   isApiError,
   isConcurrencyError,
   isMissingRoute,
-  type BootstrapData,
 } from "@/api";
 import { announce } from "./announce";
 import { reportConflict } from "./conflict";
-import { invalidateTaskQueries, queryClient, queryKeys } from "./query";
+import { invalidateTaskQueries, queryClient } from "./query";
 
 /**
  * Undo stack (plan §9).
@@ -187,14 +186,13 @@ export async function undoLast(): Promise<boolean> {
 
   if (entry.entityId && entry.action) {
     try {
-      const bootstrap = queryClient.getQueryData<BootstrapData>(
-        queryKeys.bootstrap,
-      );
-      const fromCursor = Math.max(0, (bootstrap?.cursor ?? 0) - 30);
+      // Search from the newest activity row. The bootstrap cursor is the
+      // current max seq, and the server's cursor is exclusive (`seq < cursor`),
+      // so subtracting 30 skipped the action that was just performed.
       const seq = await activityApi.undoLatest({
         entityId: entry.entityId,
         action: entry.action,
-        fromCursor,
+        fromCursor: 0,
       });
       if (seq !== null) {
         await invalidateTaskQueries(queryClient);

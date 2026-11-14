@@ -666,6 +666,7 @@ export function useCompleteTask() {
       announce(`Completed ${completed.title}.`);
       toast.success("Done.", {
         description: completed.title,
+        duration: 20_000,
         action: {
           label: "Undo",
           onClick: () => {

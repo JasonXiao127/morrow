@@ -317,6 +317,7 @@ export function AssistantPanel({ onClose }: { onClose?: () => void }) {
         if (batchId && data["undoable"] === true) {
           toast(summary, {
             description: "This was a single-item write. Undo is available.",
+            duration: 20_000,
             action: {
               label: "Undo",
               onClick: () => undoBatchRef.current.mutate(batchId),

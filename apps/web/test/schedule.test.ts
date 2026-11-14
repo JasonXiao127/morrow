@@ -8,6 +8,7 @@ import {
   localDateKey,
   localDateTimeToIso,
   recurrenceLabelForValue,
+  recurrenceNeedsStart,
   recurrenceValue,
   rruleForValue,
   scheduleFields,
@@ -18,6 +19,7 @@ import {
   todayDateInput,
   tomorrowAtNine,
   wallDateTimeFromLocal,
+  wallDateTimeInZoneToIso,
 } from "../src/lib/schedule.js";
 import { dateKey } from "../src/lib/format.js";
 import { makeTask } from "./helpers.js";
@@ -86,6 +88,20 @@ describe("schedule payloads", () => {
       rrule: "RRULE:FREQ=DAILY",
       dtstartLocal: "2026-07-15T09:30:00",
     });
+  });
+
+  it("resolves timed values in the account timezone, not the browser timezone", () => {
+    const utc = scheduleFields({
+      dateTimeLocal: "2026-07-15T09:30",
+      timezone: "UTC",
+    });
+    expect(utc.dueAt).toBe("2026-07-15T09:30:00.000Z");
+
+    const ny = scheduleFields({
+      dateTimeLocal: "2026-07-15T09:30",
+      timezone: NY,
+    });
+    expect(ny.dueAt).toBe("2026-07-15T13:30:00.000Z");
   });
 
   it("builds an all-day payload keyed by the wall date", () => {
@@ -184,6 +200,41 @@ describe("local date and datetime helpers", () => {
     expect(localDateTimeToIso("")).toBeNull();
   });
 
+  it("converts wall time in an explicit IANA zone", () => {
+    expect(wallDateTimeInZoneToIso("2026-07-15T09:30", "UTC")).toBe(
+      "2026-07-15T09:30:00.000Z",
+    );
+    expect(wallDateTimeInZoneToIso("2026-07-15T09:30", NY)).toBe(
+      "2026-07-15T13:30:00.000Z",
+    );
+    expect(wallDateTimeInZoneToIso("not-a-date", NY)).toBeNull();
+    expect(wallDateTimeInZoneToIso("2026-07-15T09:30", "Not/AZone")).toBeNull();
+  });
+
+  it("requires a start before a repeat can be saved", () => {
+    expect(
+      recurrenceNeedsStart({
+        rrule: "RRULE:FREQ=DAILY",
+        dueAt: null,
+        dueDate: null,
+      }),
+    ).toBe(true);
+    expect(
+      recurrenceNeedsStart({
+        rrule: "RRULE:FREQ=DAILY",
+        dueAt: null,
+        dueDate: "2026-07-15",
+      }),
+    ).toBe(false);
+    expect(
+      recurrenceNeedsStart({
+        rrule: null,
+        dueAt: null,
+        dueDate: null,
+      }),
+    ).toBe(false);
+  });
+
   it("keeps all-day dates as plain keys", () => {
     expect(toDateInput("2026-07-15T00:00:00")).toBe("2026-07-15");
     expect(toDateInput(null)).toBe("");
@@ -241,6 +292,16 @@ describe("capture and task schedule hydration", () => {
     expect(fromDueAt.dateTimeLocal).toBe("2026-07-15T09:30");
     expect(fromDueAt.dateLocal).toBe("");
 
+    const accountZone = captureScheduleFromParsed(
+      {
+        title: "Call Sam",
+        dueAt: "2026-07-15T13:30:00.000Z",
+        allDay: false,
+      } satisfies ParsedCapture,
+      "UTC",
+    );
+    expect(accountZone.dateTimeLocal).toBe("2026-07-15T13:30");
+
     const fromWall = captureScheduleFromParsed({
       title: "Call Sam",
       dtstartLocal: "2026-07-15T09:30:00",
@@ -292,6 +353,17 @@ describe("capture and task schedule hydration", () => {
     expect(timed.dateTimeLocal).toBe("2026-07-17T09:30");
     expect(timed.dateLocal).toBe("");
     expect(timed.allDay).toBe(false);
+
+    const timedInUtc = scheduleForTask(
+      makeTask({
+        id: "timed-utc",
+        allDay: false,
+        dueAt: "2026-07-10T13:30:00.000Z",
+        nextOccurrenceAt: "2026-07-17T13:30:00.000Z",
+      }),
+      "UTC",
+    );
+    expect(timedInUtc.dateTimeLocal).toBe("2026-07-17T13:30");
   });
 });
 
@@ -310,6 +382,18 @@ describe("DST edges", () => {
     expect(iso).toBe("2026-11-01T05:30:00.000Z");
     expect(new Date(iso ?? "").getTime()).toBe(
       new Date("2026-11-01T05:30:00.000Z").getTime(),
+    );
+  });
+
+  it("matches the shared compatible DST policy for an explicit zone", () => {
+    expect(wallDateTimeInZoneToIso("2026-03-08T02:30", NY)).toBe(
+      "2026-03-08T07:30:00.000Z",
+    );
+    expect(wallDateTimeInZoneToIso("2026-11-01T01:30", NY)).toBe(
+      "2026-11-01T05:30:00.000Z",
+    );
+    expect(wallDateTimeInZoneToIso("2026-07-15T09:30", NY)).toBe(
+      "2026-07-15T13:30:00.000Z",
     );
   });
 

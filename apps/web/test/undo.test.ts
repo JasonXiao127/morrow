@@ -140,11 +140,6 @@ describe("undo stack", () => {
   });
 
   it("looks up the latest activity row when an activity id is unavailable", async () => {
-    mocks.getQueryData.mockReturnValue({
-      lists: [],
-      tasks: [],
-      cursor: 100,
-    });
     mocks.activityUndoLatest.mockResolvedValue(77);
     pushUndo({
       label: "Completed task",
@@ -157,7 +152,7 @@ describe("undo stack", () => {
     expect(mocks.activityUndoLatest).toHaveBeenCalledWith({
       entityId: "task-9",
       action: "complete",
-      fromCursor: 70,
+      fromCursor: 0,
     });
     expect(mocks.invalidate).toHaveBeenCalledTimes(1);
     expect(peekUndo()).toBeUndefined();

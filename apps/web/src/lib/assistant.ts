@@ -69,10 +69,13 @@ export function useApplyProposal() {
         payloadHash,
         baseRev: proposal.baseRev ?? undefined,
       }),
-    onSuccess: async (result) => {
+    onSuccess: async (result, { proposal }) => {
       await Promise.all([
         invalidateTaskQueries(queryClient),
         queryClient.invalidateQueries({ queryKey: ["proposals"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["proposal", proposal.id],
+        }),
       ]);
       toast.success(
         result.applied === 1
@@ -91,8 +94,13 @@ export function useDismissProposal() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (proposal: Proposal) => proposalsApi.dismiss(proposal.id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["proposals"] });
+    onSuccess: async (_result, proposal) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["proposals"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["proposal", proposal.id],
+        }),
+      ]);
       toast("Proposal dismissed", {
         description: "Nothing changed.",
       });
@@ -105,10 +113,13 @@ export function useUndoProposal() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (proposal: Proposal) => proposalsApi.undo(proposal.id),
-    onSuccess: async (result) => {
+    onSuccess: async (result, proposal) => {
       await Promise.all([
         invalidateTaskQueries(queryClient),
         queryClient.invalidateQueries({ queryKey: ["proposals"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["proposal", proposal.id],
+        }),
       ]);
       toast.success("Undone.", {
         description: `${result.undone} change${result.undone === 1 ? "" : "s"} restored.`,
@@ -193,6 +204,36 @@ export function statusLabel(status: AssistantStatus | undefined): string {
 
 export function canChat(status: AssistantStatus | undefined): boolean {
   return Boolean(status?.available && status.status === "ready");
+}
+
+/**
+ * The server reuses `dismissed` after Undo all. A dismissed proposal that was
+ * previously applied is not the same as one the user dismissed without
+ * applying it.
+ */
+export function isProposalUndone(proposal: Proposal): boolean {
+  return (
+    proposal.status === "dismissed" &&
+    proposal.appliedActivityId != null
+  );
+}
+
+export function proposalStateLabel(proposal: Proposal): string {
+  return isProposalUndone(proposal) ? "undone" : proposal.status;
+}
+
+export function proposalCardSummary(proposal: Proposal): string {
+  if (isProposalUndone(proposal)) {
+    return "Undone. The previous state was restored.";
+  }
+  if (proposal.status === "applied") {
+    return "Applied. Undo all restores the previous state.";
+  }
+  if (proposal.status === "dismissed") return "Dismissed. Nothing changed.";
+  if (proposal.status === "expired") {
+    return "Expired. Ask again for a fresh plan.";
+  }
+  return proposal.summary;
 }
 
 export { queryKeys };

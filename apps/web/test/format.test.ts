@@ -375,6 +375,9 @@ describe("display formatting", () => {
   it("summarises recurrence rules", () => {
     expect(recurrenceLabel(null)).toBeNull();
     expect(recurrenceLabel("RRULE:FREQ=DAILY")).toBe("Every day");
+    expect(
+      recurrenceLabel("RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"),
+    ).toBe("Every weekday");
     expect(recurrenceLabel("RRULE:FREQ=WEEKLY;INTERVAL=2")).toBe(
       "Every 2 weeks",
     );

@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
 import { ProposalCard } from "@/components/ProposalCard";
 import { TaskListError, TaskListSkeleton } from "@/components/TaskListStates";
+import { proposalStateLabel } from "@/lib/assistant";
 import { useAppData } from "@/lib/queries";
 
 /**
@@ -24,6 +25,9 @@ export function ProposalPage() {
     queryKey: ["proposal", proposalId],
     queryFn: () => proposalsApi.get(proposalId),
     staleTime: 10_000,
+    // A generic assistant batch undo can change the proposal server-side
+    // without this page's own mutation; keep the state fresh.
+    refetchInterval: 15_000,
     // Proposals belong to the owner's assistant. Members who deep-link here
     // must not fire a guaranteed 403.
     enabled: isOwner,
@@ -140,7 +144,7 @@ export function ProposalPage() {
       <PageHeader
         eyebrow={
           <span className="label-caps">
-            Proposal · {proposal.status}
+            Proposal · {proposalStateLabel(proposal)}
           </span>
         }
         title={proposal.summary}

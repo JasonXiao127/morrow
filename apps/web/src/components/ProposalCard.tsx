@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Check,
@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import type { Proposal } from "@/api";
 import {
+  proposalCardSummary,
+  proposalStateLabel,
   useApplyProposal,
   useDismissProposal,
   useUndoProposal,
@@ -47,14 +49,7 @@ export function ProposalCard({
   const allSelected = count === proposal.preview.length;
   const busy = apply.isPending || dismiss.isPending || undo.isPending;
 
-  const summary = useMemo(() => {
-    if (proposal.status === "applied") {
-      return "Applied. Undo all restores the previous state.";
-    }
-    if (proposal.status === "dismissed") return "Dismissed. Nothing changed.";
-    if (proposal.status === "expired") return "Expired. Ask again for a fresh plan.";
-    return proposal.summary;
-  }, [proposal.preview.length, proposal.status, proposal.summary]);
+  const summary = proposalCardSummary(proposal);
 
   const toggle = (index: number) => {
     setSelected((current) => {
@@ -98,7 +93,9 @@ export function ProposalCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="label-caps">
-              {pending ? "Proposal" : "Proposal · " + proposal.status}
+              {pending
+                ? "Proposal"
+                : `Proposal · ${proposalStateLabel(proposal)}`}
             </span>
             <span className="flex items-center gap-1 text-12 text-faint">
               {pending ? "Nothing changed yet" : ""}

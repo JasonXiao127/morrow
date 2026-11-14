@@ -26,7 +26,10 @@ import {
   captureScheduleFromParsed,
   recurrenceLabelForValue,
   RECURRENCE_OPTIONS,
+  recurrenceNeedsStart,
+  rruleForValue,
   scheduleFields,
+  toDateTimeLocalInZone,
   wallDateTimeFromLocal,
 } from "@/lib/schedule";
 import { uuidv7 } from "@/lib/utils";
@@ -87,9 +90,11 @@ export function CaptureSheet({
   initialDate?: string;
   initialTitle?: string;
 }) {
-  const { lists } = useAppData();
+  const { lists, user } = useAppData();
   const createTask = useCreateTask();
   const online = useOnline();
+  const accountTimezone =
+    user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const [title, setTitle] = useState("");
   const [listId, setListId] = useState("");
@@ -147,14 +152,14 @@ export function CaptureSheet({
         try {
           const result = await captureApi.parse(
             trimmed,
-            Intl.DateTimeFormat().resolvedOptions().timeZone,
+            accountTimezone,
             controller.signal,
           );
           if (controller.signal.aborted) return;
           setParsed(result);
           setParserAvailable(true);
           if (!manualSchedule) {
-            const schedule = captureScheduleFromParsed(result);
+            const schedule = captureScheduleFromParsed(result, accountTimezone);
             setAllDay(schedule.allDay);
             setDateValue(schedule.allDay ? schedule.dateLocal : schedule.dateTimeLocal);
             setRecurrence(schedule.recurrence);
@@ -186,7 +191,15 @@ export function CaptureSheet({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [initialListId, manualList, manualSchedule, online, open, title]);
+  }, [
+    accountTimezone,
+    initialListId,
+    manualList,
+    manualSchedule,
+    online,
+    open,
+    title,
+  ]);
 
   const effectiveRecurrence = recurrence;
   const dateLabel = parsed && !manualSchedule
@@ -210,7 +223,7 @@ export function CaptureSheet({
 
   const applySuggestion = () => {
     if (!parsed) return;
-    const schedule = captureScheduleFromParsed(parsed);
+    const schedule = captureScheduleFromParsed(parsed, accountTimezone);
     setManualSchedule(false);
     setAllDay(schedule.allDay);
     setDateValue(schedule.allDay ? schedule.dateLocal : schedule.dateTimeLocal);
@@ -226,7 +239,7 @@ export function CaptureSheet({
       textRef.current?.focus();
       return;
     }
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timezone = accountTimezone;
     const useParsedSchedule = Boolean(parsed) && !manualSchedule;
     const schedule = useParsedSchedule && parsed
       ? {
@@ -239,7 +252,7 @@ export function CaptureSheet({
             parsed.dtstartLocal ??
             (parsed.dueAt
               ? wallDateTimeFromLocal(
-                  new Date(parsed.dueAt).toISOString().slice(0, 16),
+                  toDateTimeLocalInZone(parsed.dueAt, accountTimezone),
                 )
               : parsed.dueDate?.slice(0, 10) ?? null),
         }
@@ -251,6 +264,22 @@ export function CaptureSheet({
           customRrule,
           timezone,
         });
+
+    const requestedRrule =
+      useParsedSchedule && parsed
+        ? parsed.rrule ?? null
+        : rruleForValue(effectiveRecurrence, customRrule);
+    if (
+      recurrenceNeedsStart({
+        rrule: requestedRrule,
+        dueAt: schedule.dueAt,
+        dueDate: schedule.dueDate,
+      })
+    ) {
+      setError("Choose a date or time before setting a repeat.");
+      dateRef.current?.focus();
+      return;
+    }
 
     const input = {
       id: uuidv7(),
