@@ -107,6 +107,7 @@ import {
 import { requireOwner } from "./authz.js";
 import { isMaintenanceActive } from "./maintenance.js";
 import { sseHandler } from "./sse.js";
+import { readWorkspaceEpoch } from "./workspaceEpoch.js";
 
 const APP_VERSION = "0.3.0";
 
@@ -842,6 +843,22 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // ---- GET /api/me ----------------------------------------------------------
+  // Lightweight identity + workspace stamp for the client before it replays
+  // an offline outbox. Deliberately does not return settings or task data.
+  app.get(
+    "/api/me",
+    { config: { rateLimit: { max: 120, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const auth = authenticateRequest(req);
+      if (!auth) return unauthorized(req, reply);
+      return reply.send({
+        user: publicUser(auth.user),
+        workspaceEpoch: readWorkspaceEpoch(getDb()),
+      });
+    },
+  );
+
   // ---- PATCH /api/me --------------------------------------------------------
   // Per-account preferences. Timezone is deliberately member-writable: it is
   // the fallback zone for this user's own reminders and shared-list quiet
@@ -1094,6 +1111,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       serverTime: nowIso(),
       maxRev,
       cursor,
+      // A restore bumps this; clients compare it before replaying an offline
+      // outbox so pre-restore mutations cannot land on restored rows.
+      workspaceEpoch: readWorkspaceEpoch(db),
       vapidPublicKey: cfg.vapidPublicKey,
       agent: honestAgentForBootstrap(db, cfg),
     });

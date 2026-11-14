@@ -174,6 +174,7 @@ export interface BootstrapData {
   serverTime?: string;
   maxRev?: number;
   cursor?: number;
+  workspaceEpoch?: number;
   vapidPublicKey?: string | null;
   agentStatus?: AgentStatus | null;
   agent?: AgentStatus | null;
@@ -613,6 +614,27 @@ export const api = {
     });
   },
 
+  async workspaceState(): Promise<{
+    user: User | null;
+    workspaceEpoch: number;
+  }> {
+    const raw = await apiFetch<Record<string, unknown>>("/me", {
+      method: "GET",
+      // A cold visit without a session is handled by the bootstrap redirect;
+      // do not turn the pre-replay probe into a session-expired redirect.
+      suppressAuthEvent: true,
+    });
+    return {
+      user: (raw["user"] as User | null | undefined) ?? null,
+      workspaceEpoch:
+        typeof raw["workspaceEpoch"] === "number" &&
+        Number.isSafeInteger(raw["workspaceEpoch"]) &&
+        raw["workspaceEpoch"] >= 0
+          ? raw["workspaceEpoch"]
+          : 0,
+    };
+  },
+
   async bootstrap(): Promise<BootstrapData> {
     const raw = await apiFetch<Record<string, unknown>>("/bootstrap", {
       method: "GET",
@@ -669,6 +691,10 @@ export const api = {
         typeof payload["maxRev"] === "number" ? payload["maxRev"] : undefined,
       cursor:
         typeof payload["cursor"] === "number" ? payload["cursor"] : undefined,
+      workspaceEpoch:
+        typeof payload["workspaceEpoch"] === "number"
+          ? payload["workspaceEpoch"]
+          : 0,
       vapidPublicKey:
         typeof payload["vapidPublicKey"] === "string"
           ? payload["vapidPublicKey"]

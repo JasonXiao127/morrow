@@ -43,6 +43,7 @@ import {
 } from "./backup.js";
 import { recordActivity } from "./activity.js";
 import { invalidateCalDavSync } from "./caldavSync.js";
+import { bumpWorkspaceEpoch } from "./workspaceEpoch.js";
 import { ensureOwnerRole } from "./auth.js";
 import { rebindAssistant } from "./assistant.js";
 import { beginMaintenance, endMaintenance, waitForActiveWrites } from "./maintenance.js";
@@ -265,6 +266,10 @@ export function invalidateRestoredCredentials(db: BackupDb): void {
   // may contain older task state, and a client that reused a token would miss
   // the difference. Rotating the epoch forces a full sync.
   invalidateCalDavSync(db);
+  // Browser clients also hold an offline outbox. Bump a workspace epoch so a
+  // queued mutation created before the restore is discarded instead of being
+  // replayed against the restored rows.
+  bumpWorkspaceEpoch(db);
 }
 
 function setSettingsFlag(db: BackupDb, key: string, value: unknown): void {

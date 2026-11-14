@@ -1108,4 +1108,20 @@ describe("startup role backfill", () => {
       )
       .run(ownerId);
   });
+
+  it("exposes the workspace epoch on /api/me and bootstrap", async () => {
+    const me = await api("GET", "/api/me");
+    expect(me.statusCode).toBe(200);
+    const meBody = me.json() as {
+      user?: { id?: string };
+      workspaceEpoch?: number;
+    };
+    expect(meBody.user?.id).toBe(ownerId);
+    expect(meBody.workspaceEpoch).toBeTypeOf("number");
+
+    const boot = await api("GET", "/api/bootstrap");
+    expect(boot.statusCode).toBe(200);
+    const bootBody = boot.json() as { workspaceEpoch?: number };
+    expect(bootBody.workspaceEpoch).toBe(meBody.workspaceEpoch);
+  });
 });

@@ -10,6 +10,7 @@ import {
 } from "@/api";
 import { getDb, type OutboxRecord } from "./idb";
 import { uuidv7 } from "./utils";
+import { reconcileWorkspaceState } from "./workspace-sync";
 
 /**
  * Offline outbox (plan §7).
@@ -443,6 +444,12 @@ export async function retryOutboxRecord(opId: string): Promise<ReplayResult> {
 }
 
 let launchReplay: Promise<ReplayResult> | null = null;
+let launchWorkspaceCheck: Promise<boolean> | null = null;
+
+export interface LaunchReplayResult extends ReplayResult {
+  /** True when the outbox/query cache was cleared for a new workspace epoch. */
+  workspaceReset?: boolean;
+}
 
 // ---------------------------------------------------------------------------
 // M2-OUTBOX-BEGIN: online / visibility / launch replay triggers
@@ -477,11 +484,17 @@ export function installOutboxTriggers(): void {
  * Call once before the first bootstrap on launch. Guarded so StrictMode,
  * router preloads, and two UI triggers cannot run the queue twice.
  */
-export function replayOutboxBeforeBootstrap(): Promise<ReplayResult> {
+export async function replayOutboxBeforeBootstrap(): Promise<LaunchReplayResult> {
   installOutboxTriggers();
+  // Identity/epoch first: a queued mutation from before a restore must not be
+  // applied to the restored rows.
+  if (!launchWorkspaceCheck) {
+    launchWorkspaceCheck = reconcileWorkspaceState();
+  }
+  const workspaceReset = await launchWorkspaceCheck;
   if (!launchReplay) {
     launchReplay = replayOutbox();
   }
-  return launchReplay;
+  return { ...(await launchReplay), workspaceReset };
 }
 // M2-OUTBOX-END

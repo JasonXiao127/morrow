@@ -153,10 +153,17 @@ const appRoute = createRoute({
     // Replay unacked offline operations BEFORE bootstrap can replace the
     // cached snapshot (plan §7). A failure here must not block login; the
     // outbox banner keeps the queued work visible.
+    let workspaceReset = false;
     try {
-      await replayOutboxBeforeBootstrap();
+      const replay = await replayOutboxBeforeBootstrap();
+      workspaceReset = replay.workspaceReset === true;
     } catch {
       // IndexedDB/Lock failures fall through to bootstrap.
+    }
+    if (workspaceReset) {
+      // The persisted snapshot belonged to a previous owner or a pre-restore
+      // workspace; never paint it over the freshly fetched data.
+      context.queryClient.clear();
     }
     try {
       await context.queryClient.ensureQueryData(bootstrapQueryOptions);

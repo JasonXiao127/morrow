@@ -18,6 +18,24 @@ export async function requestPersistentStorage(): Promise<boolean> {
 }
 
 /**
+ * Clear the task/query half of the local cache without touching service
+ * worker precache. Used when the server's workspace epoch or owner id changed:
+ * queued mutations from the old workspace must not be replayed.
+ *
+ * Stores are cleared instead of deleting the database because a pending
+ * delete blocks while another tab still holds the connection.
+ */
+export async function clearLocalTaskState(): Promise<void> {
+  const db = await getDb();
+  try {
+    await db.clear("outbox");
+    await db.clear("query");
+  } finally {
+    await closeDb();
+  }
+}
+
+/**
  * Purge local PWA data on logout/session expiry (plan §7/§8).
  *
  * Removes every Cache Storage entry (including Workbox precache; it will be
@@ -48,18 +66,11 @@ export async function purgeLocalData(): Promise<void> {
     }
   }
 
-  // Clear the stores instead of deleteDatabase(). A delete request stays
-  // pending while another tab still holds the database, and the next openDB
-  // then queues behind that pending delete — which made a login in another tab
-  // sit on the loading screen forever. Clearing works alongside live readers.
   try {
-    const db = await getDb();
-    await db.clear("outbox");
-    await db.clear("query");
+    await clearLocalTaskState();
   } catch (error) {
     console.warn("[morrow] could not clear IndexedDB", error);
   }
-  await closeDb();
 
   try {
     for (let index = localStorage.length - 1; index >= 0; index -= 1) {
