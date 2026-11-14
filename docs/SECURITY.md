@@ -193,10 +193,12 @@ references are resolved by the app for probes and by the sidecar at config load
 (its env/file view must match).
 
 The sidecar must read `SECRETS_DIR/providers` at the **same absolute path**.
-The bundled compose runs the sidecar as root (the image default), so it can
-read the app's 10001-owned 0600 keys. If you harden the sidecar to non-root, run
-it as 10001 or align ownership of the provider directory; otherwise OpenCode
-sees a missing key. Never widen a key to 0644; fix the mount or UID instead. The
+The bundled compose runs the sidecar as 10001 with `cap_drop: [ALL]`,
+`no-new-privileges`, a read-only root filesystem and a writable
+`opencode-home` volume; `providers-init` owns the provider, secret and sidecar
+home/config/data/state/cache volumes. If you run the sidecar as a different
+UID, align ownership of the provider directory; otherwise OpenCode sees a
+missing key. Never widen a key to 0644; fix the mount or UID instead. The
 overlay file is 0644 because it contains references, not secrets.
 
 The bundled `opencode-secrets` volume mounts only the `providers/` subpath at

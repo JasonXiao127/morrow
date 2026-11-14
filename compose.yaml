@@ -28,8 +28,8 @@ name: morrow
 
 services:
   # One-shot volume prep. A fresh named volume is root-owned, while the app
-  # image runs as uid/gid 10001. This makes the shared provider/secret volumes
-  # writable by the app and readable (0600 keys) by the root sidecar.
+  # and sidecar run as uid/gid 10001. This makes the shared provider/secret
+  # volumes writable by the app and readable (0600 keys) by the sidecar.
   # TODO(prod): pin this helper by digest with the opencode image below.
   providers-init:
     image: ghcr.io/anomalyco/opencode:2.2.5
@@ -40,14 +40,29 @@ services:
     command:
       - |
         set -eu
-        mkdir -p /providers /secrets/providers
-        chown -R 10001:10001 /providers /secrets
+        mkdir -p \
+          /home/opencode/.config \
+          /home/opencode/.local/share \
+          /home/opencode/.local/state \
+          /home/opencode/.cache \
+          /providers /secrets/providers
+        chown -R 10001:10001 \
+          /home/opencode /providers /secrets \
+          /mnt/opencode-config /mnt/opencode-data \
+          /mnt/opencode-state /mnt/opencode-cache
         chmod 0700 /providers /secrets /secrets/providers
         find /providers -type f -exec chmod 0644 {} +
         find /secrets -type f -exec chmod 0600 {} +
     volumes:
       - opencode-providers:/providers
       - opencode-secrets:/secrets
+      # The sidecar runs as 10001. A dedicated home volume gives it writable
+      # .config/.local/.cache parents; the four nested volumes are chowned too.
+      - opencode-home:/home/opencode
+      - opencode-config:/mnt/opencode-config
+      - opencode-data:/mnt/opencode-data
+      - opencode-state:/mnt/opencode-state
+      - opencode-cache:/mnt/opencode-cache
 
   # TODO(prod): pin Caddy by digest, e.g.
   #   image: caddy@sha256:<digest>
@@ -85,6 +100,18 @@ services:
     # Allow the SIGTERM handler to stop the scheduler, close Fastify and
     # checkpoint the WAL before Docker kills the process.
     stop_grace_period: 30s
+    init: true
+    # The app only writes /data (volume) and /tmp. Refuse writes elsewhere and
+    # drop every capability; it binds high ports as uid 10001.
+    read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=64m"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    pids_limit: 256
     env_file:
       - .env
     environment:
@@ -149,6 +176,19 @@ services:
     command: ["serve", "--hostname", "0.0.0.0", "--port", "4096"]
     restart: unless-stopped
     stop_grace_period: 30s
+    # The image defaults to root. Run it as the same uid that owns the shared
+    # provider/secret volumes and its own home/config/data volumes.
+    user: "10001:10001"
+    init: true
+    read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=64m"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    pids_limit: 256
     # The pinned image's default HOME is /root; point it at the paths the
     # compose bundle persists, and discover ./config/opencode.jsonc from the
     # workspace while the overlay is loaded through OPENCODE_CONFIG.
@@ -161,8 +201,14 @@ services:
       # definitions and provider entries both apply. The singular `provider`
       # shape is normalised by pinned 2.2.5.
       OPENCODE_CONFIG: /home/opencode/.config/opencode/providers/global.json
+      # TODO(security): both values are visible to `docker inspect`. A wrapper
+      # entrypoint could read a sidecar-only 0600 secret subpath instead; see
+      # docs/RUNBOOK.md. Do not replace the static MCP token with a per-turn
+      # HMAC token until OpenCode has a per-turn header channel.
       REMINDERS_MCP_TOKEN: ${REMINDERS_MCP_TOKEN:?set REMINDERS_MCP_TOKEN via ./deploy/init-env.sh}
     volumes:
+      # Writable parent for .config/.local/.cache; providers-init owns it.
+      - opencode-home:/home/opencode
       # Read-only agent workspace config (M4 provides ./config/opencode.jsonc).
       # Until M4 lands, create an empty ./config/opencode.jsonc placeholder or
       # `docker compose up` will fail on this mount.
@@ -170,6 +216,8 @@ services:
       # The system prompt is single-sourced from the agent package; the
       # config references it as {file:./prompts/reminders.md}.
       - ./packages/agent/prompts:/workspace/prompts:ro
+      # Parent config volume first, then the read-only overlay subdirectory.
+      - opencode-config:/home/opencode/.config/opencode
       # Global-config overlay directory (app writes /data/opencode-providers).
       # OpenCode loads global.json through OPENCODE_CONFIG and hot-reloads after
       # the backend's atomic rename. Sidecar reads only.
@@ -185,7 +233,6 @@ services:
         read_only: true
         volume:
           subpath: providers
-      - opencode-config:/home/opencode/.config/opencode
       - opencode-data:/home/opencode/.local/share/opencode
       - opencode-state:/home/opencode/.local/state/opencode
       - opencode-cache:/home/opencode/.cache/opencode
@@ -220,6 +267,7 @@ volumes:
   opencode-secrets:
   caddy-data:
   caddy-config:
+  opencode-home:
   opencode-config:
   opencode-data:
   opencode-state:

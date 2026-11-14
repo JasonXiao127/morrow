@@ -751,7 +751,7 @@ curl -fsS -b "$JAR" "$BASE/api/providers" \
 # 2. The overlay is valid JSON and only references keys (never prints a key).
 sg docker -c 'docker compose exec -T app node -e "const fs=require(\"fs\");const d=JSON.parse(fs.readFileSync(\"/data/opencode-providers/global.json\",\"utf8\"));console.log(d.provider && Object.keys(d.provider))"'
 
-# 3. Key files are 0600 and owned by the app user; the bundled sidecar is root.
+# 3. Key files are 0600 and owned by UID 10001; app and sidecar both run as it.
 sg docker -c 'docker compose exec -T app sh -c "stat -c \"%a %U:%G %n\" /data/secrets/providers/*.key"'
 sg docker -c 'docker compose exec -T app id'
 sg docker -c 'docker compose exec -T opencode id'
@@ -775,8 +775,8 @@ means:
 - the sidecar is not using `/workspace` as its working directory, so the
   workspace project config and overlay are not merged;
 - a single-file bind mount is pinned to the old inode after an atomic rename;
-- the sidecar runs non-root as a UID other than 10001 and cannot read the 0600
-  key file (the bundled sidecar runs as root and can);
+- the sidecar runs as a UID other than 10001 and cannot read the 0600 key
+  file (the bundled sidecar runs as 10001);
 - the sidecar watcher did not reload.
 
 Fix the mount/UID, then restart the app (startup reconciliation re-renders when

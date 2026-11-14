@@ -161,9 +161,10 @@ file. `PROVIDER_OVERLAY_PATH` only tells the **app** where to write; the
 sidecar's `OPENCODE_CONFIG` controls what OpenCode loads.
 
 `providers-init` is a one-shot root helper that prepares fresh named volumes:
-it creates `/providers` and `/secrets/providers` owned by 10001, sets directory
-mode 0700, overlay files 0644, and key files 0600. Without it, a fresh named
-volume is root-owned and the app cannot write.
+it creates `/providers` and `/secrets/providers` owned by 10001, creates and
+owns the sidecar's home/config/data/state/cache mountpoints, sets directory mode
+0700, overlay files 0644, and key files 0600. Without it, a fresh named volume
+is root-owned and the app or sidecar cannot write.
 
 The app writes `/data/opencode-providers` and `/data/secrets`; the sidecar
 mounts the providers volume under its global config directory and the secrets
@@ -172,10 +173,10 @@ config. `/workspace` is read-only and is the only config the sidecar gets from
 the app image. The sidecar's own auth and state volumes are writable but are not
 exposed to the app.
 
-The bundled sidecar runs as root (the image default) and can therefore read the
-10001-owned 0600 keys. If you run the sidecar non-root, run it as 10001 or align
-ownership of `SECRETS_DIR/providers`; otherwise OpenCode sees a missing key.
-Keys stay 0600; never widen them to 0644 to "fix" a permission error.
+The bundled sidecar runs as 10001 and can therefore read the 10001-owned 0600
+keys. If you run it as a different UID, align ownership of
+`SECRETS_DIR/providers`; otherwise OpenCode sees a missing key. Keys stay 0600;
+never widen them to 0644 to "fix" a permission error.
 
 Mounting the **whole** `SECRETS_DIR` (the `opencode-secrets` volume) gives the
 sidecar read access to anything else stored there, such as a backup HMAC key,
