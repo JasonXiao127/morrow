@@ -273,6 +273,9 @@ mutation or app start retries, and `GET /api/providers` reports
   `DELETE /api/lists/:id/share/:userId` (owner + step-up).
 - `POST /api/auth/change-password { currentPassword, newPassword }`; revokes
   every other session.
+- `GET /api/me` — lightweight `{ user, workspaceEpoch }` identity probe. The
+  PWA compares the epoch with the value stored beside its offline outbox before
+  replaying it; `GET /api/bootstrap` carries the same `workspaceEpoch`.
 - `PATCH /api/me { timezone }` — any authenticated account may change its own
   IANA timezone. This is the fallback for that user's reminders and the zone
   used for their quiet hours, including shared lists.
