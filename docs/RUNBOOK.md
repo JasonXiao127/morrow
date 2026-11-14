@@ -295,6 +295,8 @@ anything:
    ```sh
    sg docker -c 'docker compose images'
    sg docker -c 'docker images --digests'
+   ./deploy/pin-images.sh
+   ./deploy/pin-images.sh --check   # non-zero while any image is mutable
    ```
 
 3. Replace each `image:` tag with `repository@sha256:<digest>` (Caddy and

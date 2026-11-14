@@ -498,8 +498,10 @@ but browsers only honour it on a potentially trustworthy origin (HTTPS, or
 
 All secrets live in 0600 files under `SECRETS_DIR` or, for the compose scaffold,
 in `.env` (which `init-env.sh` chmods 600). Never commit them; logs redact
-`authorization`, `cookie`, `x-readyz-token`, `x-morrow-token`, `x-api-key`,
-query `token`/`access_token`/`key`/`signature`/`password`, `set-cookie`,
+`authorization`, `cookie`, `x-readyz-token`, `x-step-up-token`,
+`x-morrow-token`, `x-api-key`, query
+`token`/`access_token`/`key`/`signature`/`password`/`setup_token`/`readyz_token`,
+`set-cookie`,
 `*.password`, `*.password_hash`, `*.token`, `*.token_hash`, `*setupToken*`, and
 `*sessionToken*`. Fastify's request serializer keeps the path and non-sensitive
 query parameters but replaces sensitive values with `[REDACTED]`; Caddy's
@@ -514,6 +516,16 @@ pins both configurations.
 | Owner password | Argon2 hash in `users` | `sg docker -c 'docker compose exec -T app node apps/server/dist/reset-password.js --user owner "<new>"'` (omit `--user` for the default owner); hashes the named account and revokes only that account's sessions. Prefer piping the password on stdin with `-`. |
 | `OPENCODE_PASSWORD` | `.env` | Change, restart `opencode` (and any client using basic auth). No app restart required. |
 | `REMINDERS_MCP_TOKEN` | `.env` / `SECRETS_DIR/reminders_mcp_token` | Prefer `POST /api/mcp/tokens/rotate` with step-up; copy the one-time plaintext into `.env`, restart the sidecar. Rotation revokes the old primary. If editing env directly and restarting the app, the primary hash is replaced unless already revoked. |
+
+`OPENCODE_PASSWORD` and `REMINDERS_MCP_TOKEN` reach the sidecar through its
+environment. That means `docker inspect` and `/proc/1/environ` show them to
+anyone with Docker/root access, which is already root-equivalent on the host.
+The sidecar mounts no host files and its OpenCode policy denies shell, file,
+web, and search tools, so a prompt-injected assistant cannot read the
+environment itself. A wrapper entrypoint reading a 0600 file would remove the
+`docker inspect` copy but not the process environment. Do not replace the
+static MCP token with a per-turn HMAC token until OpenCode exposes a per-turn
+MCP header channel; the pinned 2.2.5 config loads one static header at startup.
 | Provider API keys | `SECRETS_DIR/providers/<providerId>.key` | `PATCH /api/providers/:id/rotate` with fresh step-up (Settings → Rotate key); revoke the old key at the provider, test, and confirm the overlay. Deleting the provider removes the file. JSON backups exclude keys; volume snapshots do not. |
 | VAPID key pair | `.env` / `SECRETS_DIR/vapid_*` | Generate a new pair, restart the app, then remove/re-enable push on every device. Existing `PushSubscription`s were created with the old applicationServerKey; launch resync reuses them, so it cannot repair a VAPID rotation by itself. Old subscriptions are disabled on 401/403/410. |
 | `BACKUP_HMAC_KEY` | env or `SECRETS_DIR/backup_hmac_key` | New exports use the new key. Keep the old key for the retention window to verify old backups; without it old HMACs show `unchecked` but SHA/canonical checks still apply. Never store the key inside `BACKUP_DIR`. |
