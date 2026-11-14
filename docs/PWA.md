@@ -6,7 +6,9 @@ Morrow is an installable React PWA built with `vite-plugin-pwa` in
 Push is at-least-once and deduped client-side; reminders expose **Complete**
 and **Snooze 10m** actions, and the app badge follows today's open work. The
 offline outbox accepts create, edits, complete, snooze, skip, and delete.
-HTTPS is required except on `localhost`. Tailscale Serve's `*.ts.net`
+HTTPS is required except on `localhost`. The app checks
+`window.isSecureContext` and refuses push permission/registration on a plain
+HTTP origin instead of failing silently. Tailscale Serve's `*.ts.net`
 certificate is publicly trusted, so it is a valid secure origin for PWA
 install and iOS Web Push (see RUNBOOK, "Tailscale Serve").
 
@@ -181,6 +183,12 @@ tasks as pending sync instead of pretending they reached the server.
   `visibilitychange` (phone unlock), and on the explicit Sync now / retry
   events. `navigator.locks.request("morrow-outbox")` serializes tabs where Web
   Locks exists; older Safari falls back to one in-tab replay guard.
+- Workspace stamp: before the first replay, `GET /api/me` returns
+  `{ user, workspaceEpoch }`. The client stores both beside the outbox. If
+  either changed (account switch or backup restore), it clears the outbox and
+  persisted query cache and refetches bootstrap. A failed purge leaves the old
+  stamp so the next launch retries; this prevents pre-restore mutations from
+  landing on restored rows.
 - Failure policy: 409/412/428 stop the queue at that record, mark it conflicted,
   and show the Outbox panel/conflict UI. Nothing is silently discarded or
   last-write-wins. The server snapshot may refresh while the queued item stays
