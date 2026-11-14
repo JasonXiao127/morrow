@@ -131,6 +131,11 @@ services:
       # Change the mounts and these values together, never one side alone.
       PROVIDER_OVERLAY_PATH: /data/opencode-providers/global.json
       SECRETS_DIR: /data/secrets
+      # read_only is only safe when every mutable path is under the app-data
+      # volume. Do not let an older .env fall back to /app/data.
+      DATABASE_PATH: /data/morrow.db
+      BACKUP_DIR: /data/backups
+      ATTACHMENTS_DIR: /data/attachments
     volumes:
       - app-data:/data
       # Shared with the sidecar. Keep the directory (not a single file) so the
