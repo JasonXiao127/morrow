@@ -49,6 +49,7 @@ try {
   // VACUUM INTO writes a consistent standalone file from a live WAL database
   // without blocking readers.
   db.exec(`VACUUM INTO ${quoted}`);
+  fs.chmodSync(target, 0o600);
 } finally {
   db.close();
 }
