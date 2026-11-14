@@ -81,7 +81,12 @@ compose up -d --remove-orphans
 echo "4/4 waiting for /readyz..."
 for _ in $(seq 1 30); do
   if compose exec -T app node -e '
-    const token = process.env.READYZ_TOKEN;
+    const fs = require("node:fs");
+    const dir = process.env.SECRETS_DIR || "/data/secrets";
+    let token = process.env.READYZ_TOKEN;
+    if (!token) {
+      try { token = fs.readFileSync(`${dir}/readyz_token`, "utf8").trim(); } catch {}
+    }
     fetch("http://127.0.0.1:3000/readyz", {
       headers: token ? { "x-readyz-token": token } : {},
     }).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1));
